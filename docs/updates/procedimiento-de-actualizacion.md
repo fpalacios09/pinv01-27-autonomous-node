@@ -108,23 +108,7 @@ El nodo Jetson recibirá el CID por UART, descargará el paquete desde IPFS, ver
 Después de enviar el paquete:
 
 1. Esperar aproximadamente entre **15 y 20 minutos**, según el intervalo configurado para la comunicación LoRa.
-2. Abrir la pestaña de recepción de datos en **PINV01-27 Update Center**.
-3. Presionar **Listen**.
-4. Esperar la llegada de datos desde el nodo.
-5. Revisar los mensajes recibidos para confirmar que el sistema volvió a operar correctamente.
-
-Para guardar los datos en un nuevo archivo CSV:
-
-1. Cambiar el nombre del archivo.
-2. Aplicar el cambio antes de iniciar la escucha.
-
-Si no se cambia el nombre, los nuevos datos se agregarán al archivo CSV actual.
-
-Los archivos CSV se guardan en la carpeta:
-
-```text
-internal/
-```
+2. Abrir Notehub y verificar si el proyecto recibe los datos.
 
 ---
 
