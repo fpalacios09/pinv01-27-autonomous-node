@@ -68,11 +68,30 @@ Para el gestor de actualizaciones IPFS:
 python src/update_manager/node.py
 ```
 
+## Actualizaciones remotas
+
+El nodo permite actualizar remotamente:
+
+- El código Python ejecutado en la Jetson.
+- Los pesos del modelo YOLO.
+- El firmware compilado del Host MCU.
+
+Las actualizaciones se empaquetan como archivos `.tar` o `.tar.gz`, se distribuyen mediante IPFS y se identifican mediante su CID. El CID se transmite al nodo a través de LoRa y UART.
+
+El procedimiento completo para preparar, enviar y verificar una actualización está disponible en:
+
+- [Remote Update Procedure](docs/updates/update-procedure.md)
+
 ## Estructura del repositorio
 
 ```text
 .
-├── docs/                       # Guías ordenadas de instalación e integración
+├── docs/
+│   ├── arduino/                # Firmware y configuración del Host MCU
+│   ├── integration/            # Pruebas UART y LoRa
+│   ├── jetson/                 # Setup de JetPack, CUDA, Torch e IPFS
+│   ├── network/                # Router 4G basado en Raspberry Pi
+│   └── updates/                # Procedimientos de actualización remota
 ├── environment/                # Dependencias y referencia del entorno
 ├── examples/                   # Pruebas independientes del hardware LoRa
 ├── firmware/host_mcu/          # Firmware del Arduino Nano ESP32
@@ -89,27 +108,62 @@ python src/update_manager/node.py
 - No subir contraseñas RTSP, tokens, ProductUID privados, claves o archivos `.env`.
 - El código original contenía una URL RTSP con credenciales; en esta versión fue reemplazada por `PINV_VIDEO_SOURCE`.
 - `firmware/host_mcu/lora/config.h` está ignorado por Git. Crear el archivo desde `config.example.h`.
+- No publicar paquetes de actualización que contengan credenciales o información privada.
 - Revisar [`docs/legal/licensing.md`](docs/legal/licensing.md) antes de publicar o usar el sistema comercialmente.
 
 ## Estado de reproducción
 
-Cada etapa tiene una sección **“Criterio de éxito”**. No continuar con la siguiente etapa hasta que la anterior funcione. Para registrar una instalación exacta:
+Cada etapa tiene una sección **“Criterio de éxito”**. No continuar con la siguiente etapa hasta que la anterior funcione.
+
+Para registrar una instalación exacta:
 
 ```bash
 conda env export --no-builds > environment/environment-lock.yml
 pip freeze > environment/pip-freeze.txt
 ```
 
-Estos archivos pueden versionarse cuando correspondan a una instalación validada y sin información sensible.
+Estos archivos pueden versionarse cuando correspondan a una instalación validada y no contengan información sensible.
+
+## Diagnóstico rápido
+
+Comprobar el entorno de Jetson:
+
+```bash
+python examples/verify_jetson_stack.py
+```
+
+Comprobar el servicio:
+
+```bash
+sudo systemctl status pinv0127.service
+```
+
+Consultar los últimos registros:
+
+```bash
+journalctl -u pinv0127.service -n 100 --no-pager
+```
+
+Seguir los registros en tiempo real:
+
+```bash
+journalctl -u pinv0127.service -f
+```
 
 ## Router 4G
 
-La Raspberry Pi que entrega internet a la Jetson se documenta en un repositorio separado. Agregar su URL en [`docs/network/raspberry-router.md`](docs/network/raspberry-router.md).
+La Raspberry Pi que entrega internet a la Jetson se documenta en un repositorio separado.
+
+Agregar la URL del repositorio dedicado en:
+
+[`docs/network/raspberry-router.md`](docs/network/raspberry-router.md)
 
 ## Publicación en GitHub
 
-Consultar [`docs/github-publishing.md`](docs/github-publishing.md).
+Consultar:
+
+[`docs/github-publishing.md`](docs/github-publishing.md)
 
 ## Créditos
 
-Proyecto PINV01-27, Laboratorio de Sistemas Distribuidos, Facultad de Ingeniería de la Universidad Nacional de Asunción.
+Proyecto **PINV01-27**, Laboratorio de Sistemas Distribuidos, Facultad de Ingeniería de la Universidad Nacional de Asunción.
