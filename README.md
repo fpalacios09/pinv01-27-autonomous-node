@@ -152,11 +152,13 @@ journalctl -u pinv0127.service -f
 
 ## Router 4G
 
-La Raspberry Pi que entrega internet a la Jetson se documenta en un repositorio separado.
+La Raspberry Pi que proporciona conectividad 4G a la Jetson se documenta en un repositorio independiente:
 
-Agregar la URL del repositorio dedicado en:
+- [Raspberry Pi 4G Router](https://github.com/fpalacios09/raspberry-4g-router)
 
-[`docs/network/raspberry-router.md`](docs/network/raspberry-router.md)
+La integración de este repositorio con el nodo PINV01-27 se resume en:
+
+- [Raspberry Pi Router Integration](docs/network/raspberry-router.md)
 
 ## Publicación en GitHub
 

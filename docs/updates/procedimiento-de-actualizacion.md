@@ -2,14 +2,14 @@
 
 Este documento describe el procedimiento para preparar, enviar y verificar actualizaciones remotas del nodo autónomo **PINV01-27** mediante IPFS y LoRa.
 
----
+\---
 
-## 1. Estructura obligatoria del paquete de actualización
+## 1\. Estructura obligatoria del paquete de actualización
 
 Cada actualización debe organizarse dentro de una carpeta raíz con un nombre identificable, por ejemplo:
 
 ```text
-update_00X/
+update\_00X/
 ├── arduino/
 │   ├── readme.txt
 │   └── sketch.ino.bin
@@ -22,52 +22,54 @@ update_00X/
 
 Donde:
 
-- `update_00X/`: carpeta raíz del paquete.
-- `arduino/readme.txt`: debe contener únicamente `true` o `false`.
-  - `true`: existe una actualización para el microcontrolador.
-  - `false`: no se actualizará el microcontrolador.
-- `arduino/sketch.ino.bin`: firmware compilado para el Arduino o Nano ESP32.
-- `python/readme.txt`: debe contener únicamente `true` o `false`.
-  - `true`: existe una actualización para el código Python.
-  - `false`: no se actualizará el código Python.
-- `python/script.py`: archivo Python que será ejecutado por el nodo. El nombre `script.py` es obligatorio.
-- `python/best.pt`: pesos del modelo YOLO utilizados por el nuevo script.
-- `readme.txt`: información general sobre la actualización, cambios realizados, versión y observaciones.
+* `update\_00X/`: carpeta raíz del paquete.
+* `arduino/readme.txt`: debe contener únicamente `true` o `false`.
 
-> [!IMPORTANT]
+  * `true`: existe una actualización para el microcontrolador.
+  * `false`: no se actualizará el microcontrolador.
+* `arduino/sketch.ino.bin`: firmware compilado para el Arduino o Nano ESP32.
+* `python/readme.txt`: debe contener únicamente `true` o `false`.
+
+  * `true`: existe una actualización para el código Python.
+  * `false`: no se actualizará el código Python.
+* `python/script.py`: archivo Python que será ejecutado por el nodo. El nombre `script.py` es obligatorio.
+* `python/best.pt`: pesos del modelo YOLO utilizados por el nuevo script.
+* `readme.txt`: información general sobre la actualización, cambios realizados, versión y observaciones.
+
+> \[!IMPORTANT]
 > Los archivos `arduino/readme.txt` y `python/readme.txt` deben contener solamente `true` o `false`, sin comentarios ni texto adicional.
 
----
+\---
 
-## 2. Preparación del archivo comprimido
+## 2\. Preparación del archivo comprimido
 
 La carpeta raíz debe comprimirse en formato:
 
-- `.tar`
-- `.tar.gz`
+* `.tar`
+* `.tar.gz`
 
 Ejemplo:
 
 ```text
-update_001.tar
+update\_001.tar
 ```
 
 o:
 
 ```text
-update_001.tar.gz
+update\_001.tar.gz
 ```
 
 ### Crear un archivo `.tar` en Linux
 
 ```bash
-tar -cvf update_001.tar update_001/
+tar -cvf update\_001.tar update\_001/
 ```
 
 ### Crear un archivo `.tar.gz` en Linux
 
 ```bash
-tar -czvf update_001.tar.gz update_001/
+tar -czvf update\_001.tar.gz update\_001/
 ```
 
 ### Verificar el contenido antes de enviarlo
@@ -75,20 +77,20 @@ tar -czvf update_001.tar.gz update_001/
 Para un archivo `.tar`:
 
 ```bash
-tar -tvf update_001.tar
+tar -tvf update\_001.tar
 ```
 
 Para un archivo `.tar.gz`:
 
 ```bash
-tar -tzvf update_001.tar.gz
+tar -tzvf update\_001.tar.gz
 ```
 
 La estructura mostrada debe coincidir con la definida en la sección anterior.
 
----
+\---
 
-## 3. Envío de la actualización
+## 3\. Envío de la actualización
 
 Una vez creado el archivo comprimido:
 
@@ -101,9 +103,9 @@ Una vez creado el archivo comprimido:
 
 El nodo Jetson recibirá el CID por UART, descargará el paquete desde IPFS, verificará su integridad y procesará las carpetas `python/` y `arduino/` según el contenido de sus respectivos archivos `readme.txt`.
 
----
+\---
 
-## 4. Seguimiento de la actualización
+## 4\. Seguimiento de la actualización
 
 Después de enviar el paquete:
 
@@ -113,6 +115,11 @@ Después de enviar el paquete:
 ---
 
 ## 5. Tipos de actualización
+2. Verificar en el proyecto de Notehub.io que se reciben los eventos con lso datos de conteo.
+
+\---
+
+## 5\. Tipos de actualización
 
 ### 5.1 Actualización exclusiva de Python
 
@@ -160,25 +167,25 @@ arduino/readme.txt = true
 python/readme.txt  = true
 ```
 
----
+\---
 
-## 6. Recomendaciones operativas
+## 6\. Recomendaciones operativas
 
-- Enviar una sola actualización a la vez.
-- Evitar actualizar simultáneamente el firmware y el código Python, salvo que sea estrictamente necesario.
-- No enviar comandos de control, como reinicio de la Jetson o activación de la cámara, mientras se procesa una actualización.
-- Incluir siempre los pesos de YOLO requeridos por el nuevo `script.py`.
-- Probar el paquete completo en laboratorio antes de enviarlo al nodo desplegado.
-- Verificar que el nuevo script funcione correctamente en el mismo entorno Conda utilizado por el servicio.
-- Confirmar que las rutas `/dev/mcu` y `/dev/adapter` existan antes de probar la actualización.
-- No modificar el nombre obligatorio `script.py`.
-- No modificar manualmente el CID después de generado.
-- Mantener una copia local del último paquete funcional.
-- Registrar en el `readme.txt` de la carpeta raíz la versión, fecha y cambios incluidos.
+* Enviar una sola actualización a la vez.
+* Evitar actualizar simultáneamente el firmware y el código Python, salvo que sea estrictamente necesario.
+* No enviar comandos de control, como reinicio de la Jetson o activación de la cámara, mientras se procesa una actualización.
+* Incluir siempre los pesos de YOLO requeridos por el nuevo `script.py`.
+* Probar el paquete completo en laboratorio antes de enviarlo al nodo desplegado.
+* Verificar que el nuevo script funcione correctamente en el mismo entorno Conda utilizado por el servicio.
+* Confirmar que las rutas `/dev/mcu` y `/dev/adapter` existan antes de probar la actualización.
+* No modificar el nombre obligatorio `script.py`.
+* No modificar manualmente el CID después de generado.
+* Mantener una copia local del último paquete funcional.
+* Registrar en el `readme.txt` de la carpeta raíz la versión, fecha y cambios incluidos.
 
----
+\---
 
-## 7. Detención temporal del código en ejecución
+## 7\. Detención temporal del código en ejecución
 
 Cuando sea necesario reemplazar temporalmente el algoritmo principal, puede enviarse un `script.py` mínimo que permanezca en ejecución sin abrir una interfaz gráfica.
 
@@ -198,15 +205,15 @@ except KeyboardInterrupt:
 
 Este método permite reemplazar el código actual sin depender de una ventana de OpenCV.
 
----
+\---
 
-## 8. Ejemplo de `readme.txt` general
+## 8\. Ejemplo de `readme.txt` general
 
 El archivo `readme.txt` de la carpeta raíz puede tener un contenido similar a:
 
 ```text
 Proyecto: PINV01-27
-Actualización: update_001
+Actualización: update\_001
 Fecha: 2026-07-14
 Responsable: Equipo PINV01-27
 
@@ -223,38 +230,38 @@ Validación:
 
 Este archivo es informativo y no controla la ejecución de la actualización.
 
----
+\---
 
-## 9. Verificación previa al envío
+## 9\. Verificación previa al envío
 
 Antes de enviar el paquete, comprobar:
 
-- [ ] La estructura de carpetas es correcta.
-- [ ] Los archivos `readme.txt` de `arduino/` y `python/` contienen únicamente `true` o `false`.
-- [ ] El archivo Python se llama exactamente `script.py`.
-- [ ] El firmware compilado utiliza la extensión `.ino.bin`.
-- [ ] Los pesos YOLO requeridos están incluidos.
-- [ ] El archivo `.tar` o `.tar.gz` puede abrirse correctamente.
-- [ ] El nuevo código fue probado en laboratorio.
-- [ ] No existen credenciales, contraseñas o tokens escritos directamente en el código.
-- [ ] El nodo tiene conectividad a internet para descargar desde IPFS.
-- [ ] No se enviarán otros comandos durante la actualización.
+* \[ ] La estructura de carpetas es correcta.
+* \[ ] Los archivos `readme.txt` de `arduino/` y `python/` contienen únicamente `true` o `false`.
+* \[ ] El archivo Python se llama exactamente `script.py`.
+* \[ ] El firmware compilado utiliza la extensión `.ino.bin`.
+* \[ ] Los pesos YOLO requeridos están incluidos.
+* \[ ] El archivo `.tar` o `.tar.gz` puede abrirse correctamente.
+* \[ ] El nuevo código fue probado en laboratorio.
+* \[ ] No existen credenciales, contraseñas o tokens escritos directamente en el código.
+* \[ ] El nodo tiene conectividad a internet para descargar desde IPFS.
+* \[ ] No se enviarán otros comandos durante la actualización.
 
----
+\---
 
-## 10. Verificación posterior
+## 10\. Verificación posterior
 
 Después de la actualización:
 
-- [ ] La Jetson descargó y validó el paquete.
-- [ ] El archivo comprimido se descomprimió correctamente.
-- [ ] El nuevo `script.py` está en ejecución.
-- [ ] El modelo YOLO se cargó sin errores.
-- [ ] CUDA está disponible.
-- [ ] La comunicación UART funciona.
-- [ ] Los conteos vuelven a recibirse mediante LoRa.
-- [ ] Los datos se registran correctamente en el archivo CSV o plataforma remota.
-- [ ] No existen reinicios repetitivos del servicio `systemd`.
+* \[ ] La Jetson descargó y validó el paquete.
+* \[ ] El archivo comprimido se descomprimió correctamente.
+* \[ ] El nuevo `script.py` está en ejecución.
+* \[ ] El modelo YOLO se cargó sin errores.
+* \[ ] CUDA está disponible.
+* \[ ] La comunicación UART funciona.
+* \[ ] Los conteos vuelven a recibirse mediante LoRa.
+* \[ ] Los datos se registran correctamente en el archivo CSV o plataforma remota.
+* \[ ] No existen reinicios repetitivos del servicio `systemd`.
 
 Para revisar el servicio:
 
@@ -273,3 +280,4 @@ Para seguir los registros en tiempo real:
 ```bash
 journalctl -u pinv0127.service -f
 ```
+
