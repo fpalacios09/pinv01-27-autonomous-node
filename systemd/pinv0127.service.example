@@ -1,0 +1,19 @@
+[Unit]
+Description=PINV01-27 Autonomous Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=REPLACE_USER
+WorkingDirectory=REPLACE_WORKING_DIRECTORY
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/default/pinv0127
+ExecStart=/bin/bash -lc 'REPLACE_CONDA_EXE run -n REPLACE_CONDA_ENV --no-capture-output python -u REPLACE_NODE_SCRIPT'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

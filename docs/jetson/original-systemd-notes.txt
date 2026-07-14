@@ -1,0 +1,51 @@
+Crear un archivo de servicio para que al iniciar el SO, ejecute:
+Entorno de conda
+Script de python para recibir los hashes de actualización por UART
+
+Tener creado el entorno de conda con las librerias necesarias
+Correr las siguientes lineas CLI para probar que conda gestiona correctamente las herramientas
+>conda info --base
+>conda env list
+>conda run -n [nombre_venv] python -V
+>conda run -n [nombre_venv] python -c "print('OK CONDA')"
+
+Verificar la ruta absoluta de conda
+>which conda
+
+Guardar ese path absoluto de conda
+
+Crear el archivo de servicio
+>sudo nano /etc/systemd/system/pinv0127.service
+
+Contenido del service:
+[Unit]
+Description=PINV01-27 Autonomous Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orin
+WorkingDirectory=[directory_que se usará. empieza con /]
+
+ExecStart=/bin/bash -lc '[absolute_conda_path] run -n [venv_name] --no-capture-output python -u [script.py_path]'
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
+----------------
+Luego Ctrl+O, Enter, Ctrl+X.
+Para comprobar el contenido del archivo de servicio
+>sudo cat /etc/systemd/system/pinv0127.service
+
+Luego, recargar el daemon, iniciar el servicio, verificar estado
+>sudo systemctl daemon-reload
+>sudo systemctl restart pinv0127.service
+>sudo systemctl status pinv0127.service
+
+Hacer sudo reboot para verificar que el servicio efectivamente inicia al hacer boot al sistema

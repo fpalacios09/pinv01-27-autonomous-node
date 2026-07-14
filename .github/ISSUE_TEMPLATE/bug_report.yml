@@ -1,0 +1,25 @@
+name: Reporte de error
+description: Informar un problema reproducible
+title: "[BUG] "
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: Descripción
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Jetson y JetPack/L4T
+      placeholder: "Orin Nano 4 GB, JetPack 5.1.3, L4T 35.5.0"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Comandos y logs sin secretos
+  - type: checkboxes
+    attributes:
+      label: Verificaciones
+      options:
+        - label: Confirmé que no contiene secretos.
+          required: true

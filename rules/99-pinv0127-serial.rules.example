@@ -1,0 +1,3 @@
+# Identifica dispositivos por serial único, no por puerto físico.
+SUBSYSTEM=="tty", ATTRS{serial}=="REPLACE_MCU_SERIAL", SYMLINK+="mcu", MODE="0660", GROUP="dialout"
+SUBSYSTEM=="tty", ATTRS{serial}=="REPLACE_ADAPTER_SERIAL", SYMLINK+="adapter", MODE="0660", GROUP="dialout"

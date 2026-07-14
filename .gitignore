@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Conda / environments
+.conda/
+.env
+.env.*
+!.env.example
+
+# Secrets and local configuration
+firmware/host_mcu/lora/config.h
+config.local.*
+*.pem
+*.key
+
+# Models and generated artifacts
+*.pt
+*.engine
+*.onnx
+*.tar
+*.tar.gz
+runs/
+logs_node/
+python_stdout.log
+python_stderr.log
+ipfs_daemon.log
+updates_ipfs/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

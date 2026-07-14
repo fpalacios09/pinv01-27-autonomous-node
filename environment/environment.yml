@@ -1,0 +1,14 @@
+name: yolo
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - pip:
+      - numpy==1.23.5
+      - pyserial==3.5
+      - psutil==5.9.8
+      - matplotlib==3.7.5
+
+# PyTorch y Torchvision se instalan por separado con wheels ARM64.
+# Consulte docs/jetson/05-pytorch-cuda.md.
