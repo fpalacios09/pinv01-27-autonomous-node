@@ -75,7 +75,6 @@ ipfs_daemon_owned = False
 my_pid = None
 current_python_process = None
 current_python_pgid = None
-current_python_stdout_log = None
 current_python_stderr_log = None
 
 
@@ -163,19 +162,18 @@ def describe_process(proc):
 
 def close_tracked_python_logs():
     """
-    Cierra los archivos de log del script Python actualmente rastreado.
+    Cierra el archivo de log de errores del script Python actualmente rastreado.
+    La salida estándar (stdout) se descarta y no se guarda en archivo.
     """
-    global current_python_stdout_log, current_python_stderr_log
+    global current_python_stderr_log
 
-    for handle_name in ('current_python_stdout_log', 'current_python_stderr_log'):
-        handle = globals().get(handle_name)
-        if handle:
-            try:
-                handle.flush()
-                handle.close()
-            except Exception:
-                pass
-            globals()[handle_name] = None
+    if current_python_stderr_log:
+        try:
+            current_python_stderr_log.flush()
+            current_python_stderr_log.close()
+        except Exception:
+            pass
+        current_python_stderr_log = None
 
 
 def refresh_current_python_tracking():
@@ -349,9 +347,12 @@ def run_code_in_background(file_path):
     """
     Ejecuta un script Python en segundo plano y guarda su referencia
     para poder detener exactamente ese árbol de procesos más adelante.
+
+    stdout se descarta para evitar generar archivos de salida continua.
+    stderr se conserva en python_stderr.log para diagnóstico.
     """
     global current_python_process, current_python_pgid
-    global current_python_stdout_log, current_python_stderr_log
+    global current_python_stderr_log
 
     if not os.path.isfile(file_path):
         print(f"[error] El archivo '{file_path}' no existe.")
@@ -364,19 +365,17 @@ def run_code_in_background(file_path):
     try:
         close_tracked_python_logs()
 
-        log_out = open(os.path.join(working_dir, 'python_stdout.log'), 'a')
         log_err = open(os.path.join(working_dir, 'python_stderr.log'), 'a')
 
         process = subprocess.Popen(
             ['python3', file_path],
-            stdout=log_out,
+            stdout=subprocess.DEVNULL,
             stderr=log_err,
             cwd=working_dir,
             start_new_session=True
         )
 
         current_python_process = process
-        current_python_stdout_log = log_out
         current_python_stderr_log = log_err
 
         try:
