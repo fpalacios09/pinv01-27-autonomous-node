@@ -40,13 +40,8 @@ const byte TXD2 = 12; //
 
 HardwareSerial usbSerial(1); // Use UART channel 1
 
-// This is the unique Product Identifier for your device
-#ifndef PRODUCT_UID
-#define PRODUCT_UID "com.gmail.lccysd.mariscal.estigarribia:peatonal"   // nombre del proyecto en notehub
-#pragma message "PRODUCT_UID is not defined in this example. Please ensure your Notecard has a product identifier set before running this example or define it in code here. More details at https://dev.blues.io/tools-and-sdks/samples/product-uid"
-#endif
+#define myProductID PRODUCT_UID   //nombre del proyecto en notehub definido en config.h
 
-#define myProductID PRODUCT_UID
 Notecard notecard;
 
 String string_entrada= "";  

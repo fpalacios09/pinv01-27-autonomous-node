@@ -81,7 +81,7 @@ Las actualizaciones se empaquetan como archivos `.tar` o `.tar.gz`, se distribuy
 
 El procedimiento completo para preparar, enviar y verificar una actualización está disponible en:
 
-- [Remote Update Procedure](docs/updates/update-procedure.md)
+- [Remote Update Procedure](docs/updates/procedimiento-de-actualizacion.md)
 
 ## Estructura del repositorio
 
