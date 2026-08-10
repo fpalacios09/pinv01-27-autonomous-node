@@ -17,6 +17,8 @@ firmware/host_mcu/lora/config.h
 config.local.*
 *.pem
 *.key
+*.ovpn
+vpn-auth.txt
 
 # Models and generated artifacts
 *.pt

@@ -1,0 +1,16 @@
+[Unit]
+Description=PINV01-27 OpenVPN Client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/etc/pinv0127/vpn
+ExecStart=/usr/sbin/openvpn --config /etc/pinv0127/vpn/client.ovpn
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

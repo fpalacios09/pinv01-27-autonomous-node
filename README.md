@@ -45,6 +45,7 @@ La matriz completa y los comandos de verificación están en [`docs/jetson/00-pl
 10. [Probar el envío Jetson → MCU → LoRa](docs/integration/uart-lora-test.md).
 11. [Instalar y habilitar el servicio systemd](docs/jetson/09-systemd.md).
 12. [Configurar la Raspberry Pi como router](docs/network/raspberry-router.md).
+13. [Configurar OpenVPN en la Jetson](docs/jetson/10-openvpn.md).
 
 ## Inicio rápido después del setup
 
@@ -108,6 +109,7 @@ El procedimiento completo para preparar, enviar y verificar una actualización e
 - No subir contraseñas RTSP, tokens, ProductUID privados, claves o archivos `.env`.
 - El código original contenía una URL RTSP con credenciales; en esta versión fue reemplazada por `PINV_VIDEO_SOURCE`.
 - `firmware/host_mcu/lora/config.h` está ignorado por Git. Crear el archivo desde `config.example.h`.
+- No subir archivos `.ovpn`; pueden contener credenciales, certificados y claves privadas.
 - No publicar paquetes de actualización que contengan credenciales o información privada.
 - Revisar [`docs/legal/licensing.md`](docs/legal/licensing.md) antes de publicar o usar el sistema comercialmente.
 
