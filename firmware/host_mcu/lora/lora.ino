@@ -7,13 +7,13 @@
 const int analogPin = A2;
 const int led = D5;
 const int rele4 = D3;   // camara
-const int rele3 = D2;	  // vacio
+const int rele3 = D2;	  // power modulo lora
 const int rele2 = D6;   // raspberry
 const int rele1 = D4;   // jetson
-const int trig = D10; // forzar recepcion de json
+const int trig = D10; // forzar recepcion de json boton de force lora read en la pcb
 
 const float R1 = 29910.0;
-const float R2 = 2620.0;
+const float R2 = 7500.0;
 
 
 
@@ -21,6 +21,12 @@ const float R2 = 2620.0;
 
 unsigned long previousMillis = 0;  // debe ser unsigned long
 const unsigned long interval = 5UL * 60UL * 1000UL;  // 10 o 15 minutos en milisegundos
+
+// Supervisión del Notecard
+const byte NOTECARD_MAX_INTENTOS = 3;
+const unsigned long NOTECARD_ESPERA_REINTENTO_MS = 5000UL;
+const unsigned long NOTECARD_APAGADO_MS = 10000UL;
+const unsigned long NOTECARD_ARRANQUE_MS = 15000UL;
 
 String objeto = "";
 int valor = 0;
@@ -35,19 +41,18 @@ const byte TXD2 = 12; //
 HardwareSerial usbSerial(1); // Use UART channel 1
 
 // This is the unique Product Identifier for your device
-// Copiar config.example.h como config.h y definir PRODUCT_UID allí.
-#include "config.h"
-
 #ifndef PRODUCT_UID
-#error "PRODUCT_UID no definido. Copie config.example.h como config.h y complete su ProductUID de Notehub."
+#define PRODUCT_UID "com.gmail.lccysd.mariscal.estigarribia:peatonal"   // nombre del proyecto en notehub
+#pragma message "PRODUCT_UID is not defined in this example. Please ensure your Notecard has a product identifier set before running this example or define it in code here. More details at https://dev.blues.io/tools-and-sdks/samples/product-uid"
 #endif
 
 #define myProductID PRODUCT_UID
 Notecard notecard;
 
-String string_entrada= "";
+String string_entrada= "";  
 bool fin_string= false;
 int value = 0;
+unsigned long rstlora = 0;
 
 //----------------------------------------------------------------------------------------
 
@@ -116,7 +121,7 @@ void setup() {
   delay(10000);
 
   string_entrada.reserve(64);               //Reserva un espacio de hasta 64bytes
-
+  
   usbSerial.begin(115200, SERIAL_8N1, RXD2, TXD2);
   Serial.begin(115200);
 
@@ -132,129 +137,8 @@ void setup() {
 
   notecard.setDebugOutputStream(usbSerial);
 
-  #ifdef txRxPinsSerial
-    notecard.begin(txRxPinsSerial, 9600);
-  #else
-    notecard.begin();
-  #endif
-
-  //solicitud para restaurar notecard
-  J *req = notecard.newRequest("card.restore");
-  JAddBoolToObject(req, "delete", true);
-  notecard.sendRequest(req);
-
-  indicator();
-  points();
-
-  //solicitud para verificar version notecard
-  J *req0 = notecard.newRequest("card.version");
-  notecard.sendRequest(req0);
-
-  indicator();
-  points();
-
-  //solicitud para conectar con el proyecto de notehub
-  J *req1 = notecard.newRequest("hub.set");
-  if (myProductID[0])
-  {
-      JAddStringToObject(req1, "product", myProductID);
-  }
-  notecard.sendRequestWithRetry(req1, 5); // 5 seconds
-
-  indicator();
-  points();
-  points();
-  points();
-
-  //solicitud para sincronizar con el proyecto de notehub
-  J *req2 = notecard.newRequest("hub.sync");
-  notecard.sendRequest(req2);
-
-  indicator();
-  points();
-  points();
-
-  // Solicitud para crear template para recibir datos tipo string desde Notehub
-  J *req3 = notecard.newRequest("note.template");
-  JAddStringToObject(req3, "file", "datain.qi");
-  JAddStringToObject(req3, "format", "compact");
-  JAddNumberToObject(req3, "port", 1);
-  J *body1 = JAddObjectToObject(req3, "body");
-  if (body1) {
-    JAddStringToObject(body1, "command", "example");
-    JAddStringToObject(body1, "hash", "example");  // Valor por defecto o de ejemplo
-  }
-  notecard.sendRequest(req3);
-
-  indicator();
-  points();
-  points();
-
-
-
-
-
-
-
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-  //============================      SECCION PARA DEFINIR PLANTILLA DE OUTBOUND (CONTEO VEHICULAR)       =========================================
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-
-
-
-  //solicitud para crear template para enviar datos al proyecto de notehub
-  J *req4 = notecard.newRequest("note.template");
-  JAddStringToObject(req4, "file", "count.qo");
-  JAddStringToObject(req4, "format", "compact");
-  JAddNumberToObject(req4, "port", 2);
-  J *body2 = JAddObjectToObject(req4, "body");
-
-
-
-
-
-  //=============    MODIFICAR ESTO   ======================
-  if (body2){
-    JAddStringToObject(body2, "stream_key", "carsbikebustruck");
-    JAddNumberToObject(body2, "car_to_sl", 12); // verificar este link  https://dev.blues.io/notecard/notecard-walkthrough/low-bandwidth-design/#understanding-template-data-types
-    JAddNumberToObject(body2, "bike_to_sl", 12);
-    JAddNumberToObject(body2, "heavy_to_sl", 12);
-    JAddNumberToObject(body2, "total_to_sl", 12);
-    JAddNumberToObject(body2, "car_from_sl", 12);
-    JAddNumberToObject(body2, "bike_from_sl", 12);
-    JAddNumberToObject(body2, "heavy_from_sl", 12);
-    JAddNumberToObject(body2, "total_from_sl", 12);
-    JAddNumberToObject(body2, "voltage", 14.1);
-  }
-  notecard.sendRequest(req4);
-
-
-
-
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-  //============================    FIN DE SECCION PARA DEFINIR PLANTILLA DE OUTBOUND (CONTEO VEHICULAR)       ====================================
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-  //===============================================================================================================================================
-
-  indicator();
-  points();
-  points();
-
-
-  //solicitud para sincronizar con el proyecto de notehub
-  J *req5 = notecard.newRequest("hub.sync");
-  notecard.sendRequest(req5);
-
-  points();
-  points();
-  indicator_final();
+  // Configuración inicial completa. card.restore se ejecuta solamente aquí.
+  inicializarNotecard(true);
 
   usbSerial.println("Ready");
 }
@@ -265,108 +149,20 @@ void loop() {
   if ( (currentMillis - previousMillis >= interval) || (digitalRead(trig) == LOW ) ) {
     previousMillis = currentMillis;
 
-    // Aquí va tu código de muestreo
+    // Antes de consultar inbound, comprobar que el Notecard responde.
+    if (verificarNotecardConReintentos()) {
+      consultarInbound();
+    } else {
+      usbSerial.println("Notecard sin respuesta. Iniciando power cycle por rele VMAIN...");
 
-    J *req0 = notecard.newRequest("hub.sync");
-    notecard.sendRequest(req0);
-
-    indicator_read();
-
-    points();
-    points();
-    points();
-    points();
-
-    indicator_read();
-
-    // Solicitar cambios en el archivo y los verifica solo si hay cambios, si no, no
-    J *req1 = notecard.newRequest("file.changes");
-    if (req1 != NULL) {
-      J *files = JCreateArray();
-      if (files != NULL) {
-        JAddItemToArray(files, JCreateString("datain.qi"));
-        JAddItemToObject(req1, "files", files);
-        J *rsp = notecard.requestAndResponse(req1);
-
-        if (rsp != NULL) {
-          J *info = JGetObject(rsp, "info");
-          if (info != NULL) {
-            J *datain = JGetObject(info, "datain.qi");
-            if (datain != NULL) {
-              // Hay cambios en datain.qi, hacer note.get
-              J *req2 = notecard.newRequest("note.get");
-              if (req2 != NULL) {
-                JAddStringToObject(req2, "file", "datain.qi");
-                JAddBoolToObject(req2, "delete", true);
-                J *rsp2 = notecard.requestAndResponse(req2);
-
-                if (rsp2 != NULL) {
-                  J *body1 = JGetObject(rsp2, "body");
-                  if (body1 != NULL) {
-                    const char* command = JGetString(body1, "command");
-                    if (command != NULL) {
-                      usbSerial.print("Comando recibido: ");
-                      usbSerial.println(command);
-
-                      if (strcmp(command, "oncam") == 0) {
-                        // Acción para "oncam"
-                        digitalWrite(rele4, LOW);
-                      }
-                      if (strcmp(command, "offcam") == 0) {
-                        // Acción para "offcam"
-                        digitalWrite(rele4, HIGH);
-                      }
-                      //------------
-                      if (strcmp(command, "resetpi") == 0) {
-                        // Acción para "resetjet"
-                        digitalWrite(rele1, LOW);
-                        delay(1000);
-                        digitalWrite(rele1, HIGH);
-                      }
-
-                      if (strcmp(command, "resetjet") == 0) {
-                        // Acción para "resetpi"
-                        digitalWrite(rele2, LOW);
-                        delay(1000);
-                        digitalWrite(rele2, HIGH);
-                      }
-
-                      //---------------------------------------------------
-                      // Detectar el valor de 'hash'
-                      const char* hash = JGetString(body1, "hash");
-                      if (hash != NULL && strcmp(hash, "-") != 0) {
-                        usbSerial.print("hash ");
-                        usbSerial.println(hash);
-                      } else {
-                        usbSerial.println("Sin hash");
-                      }
-                    }
-                  }
-                  JDelete(rsp2);  // Liberar respuesta
-                }
-              }
-            }
-          }
-          JDelete(rsp);  // Liberar memoria
-        }
-
+      if (recuperarNotecard()) {
+        usbSerial.println("Notecard recuperado. Se realiza la consulta inbound pendiente.");
+        consultarInbound();
+      } else {
+        usbSerial.println("No fue posible recuperar el Notecard. Se reintentara en el proximo ciclo.");
       }
     }
-
-    //verifica de nuevo si hay algo en cola
-    J *req3 = notecard.newRequest("file.changes");
-    if (req3 != NULL) {
-      J *files3 = JCreateArray();
-      if (files3 != NULL) {
-        JAddItemToArray(files3, JCreateString("datain.qi"));
-        JAddItemToObject(req3, "files", files3);
-        notecard.sendRequest(req3);
-      }
-    }
-
   }
-
-
 
 
 
@@ -526,6 +322,7 @@ void loop() {
         JAddNumberToObject(body2, "heavy_from_sl", heavy_from_sl_tx);
         JAddNumberToObject(body2, "total_from_sl", total_from_sl_tx);
         JAddNumberToObject(body2, "voltage", voltage);
+        JAddNumberToObject(body2, "rstlora", rstlora);
       }
 
       notecard.sendRequest(req4);
@@ -536,6 +333,281 @@ void loop() {
     indicator();
 
     string_entrada = "";
+  }
+}
+
+
+//----------------------------------------------------------------------------------------
+// SUPERVISIÓN, INICIALIZACIÓN Y RECUPERACIÓN DEL NOTECARD
+//----------------------------------------------------------------------------------------
+
+bool respuestaNotecardValida(J *rsp) {
+  if (rsp == NULL) {
+    return false;
+  }
+
+  const char *error = JGetString(rsp, "err");
+  return (error == NULL || error[0] == '\0');
+}
+
+bool notecardResponde() {
+  J *req = notecard.newRequest("card.version");
+  if (req == NULL) {
+    return false;
+  }
+
+  // requestAndResponse utiliza el timeout de transacción de la librería Notecard.
+  // Si no recibe una respuesta, retorna NULL y este intento se considera fallido.
+  J *rsp = notecard.requestAndResponse(req);
+  bool correcto = respuestaNotecardValida(rsp);
+
+  if (rsp != NULL) {
+    JDelete(rsp);
+  }
+
+  return correcto;
+}
+
+bool verificarNotecardConReintentos() {
+  for (byte intento = 1; intento <= NOTECARD_MAX_INTENTOS; intento++) {
+    usbSerial.print("Verificacion Notecard, intento ");
+    usbSerial.print(intento);
+    usbSerial.print(" de ");
+    usbSerial.println(NOTECARD_MAX_INTENTOS);
+
+    if (notecardResponde()) {
+      usbSerial.println("Notecard responde correctamente.");
+      return true;
+    }
+
+    usbSerial.println("Notecard no respondio.");
+
+    if (intento < NOTECARD_MAX_INTENTOS) {
+      delay(NOTECARD_ESPERA_REINTENTO_MS);
+    }
+  }
+
+  return false;
+}
+
+bool inicializarNotecard(bool restaurar) {
+  #ifdef txRxPinsSerial
+    notecard.begin(txRxPinsSerial, 9600);
+  #else
+    notecard.begin();
+  #endif
+
+  // card.restore solamente se ejecuta durante el arranque normal del Arduino.
+  if (restaurar) {
+    J *req = notecard.newRequest("card.restore");
+    if (req != NULL) {
+      JAddBoolToObject(req, "delete", true);
+      notecard.sendRequest(req);
+    }
+
+    indicator();
+    points();
+  }
+
+  // Verificar que el Notecard está accesible antes de configurarlo.
+  if (!verificarNotecardConReintentos()) {
+    usbSerial.println("No se pudo iniciar la configuracion del Notecard.");
+    return false;
+  }
+
+  indicator();
+  points();
+
+  // Conectar con el proyecto de Notehub.
+  J *req1 = notecard.newRequest("hub.set");
+  if (req1 == NULL) {
+    return false;
+  }
+  if (myProductID[0]) {
+    JAddStringToObject(req1, "product", myProductID);
+  }
+  if (!notecard.sendRequestWithRetry(req1, 5)) {
+    usbSerial.println("Fallo hub.set durante la configuracion del Notecard.");
+    return false;
+  }
+
+  indicator();
+  points();
+  points();
+  points();
+
+  // Sincronizar con el proyecto de Notehub.
+  J *req2 = notecard.newRequest("hub.sync");
+  if (req2 != NULL) {
+    notecard.sendRequest(req2);
+  }
+
+  indicator();
+  points();
+  points();
+
+  // Template inbound.
+  J *req3 = notecard.newRequest("note.template");
+  if (req3 != NULL) {
+    JAddStringToObject(req3, "file", "datain.qi");
+    JAddStringToObject(req3, "format", "compact");
+    JAddNumberToObject(req3, "port", 1);
+    J *body1 = JAddObjectToObject(req3, "body");
+    if (body1) {
+      JAddStringToObject(body1, "command", "example");
+      JAddStringToObject(body1, "hash", "example");
+    }
+    notecard.sendRequest(req3);
+  }
+
+  indicator();
+  points();
+  points();
+
+  // Template outbound. Se conserva exactamente la estructura existente.
+  J *req4 = notecard.newRequest("note.template");
+  if (req4 != NULL) {
+    JAddStringToObject(req4, "file", "count.qo");
+    JAddStringToObject(req4, "format", "compact");
+    JAddNumberToObject(req4, "port", 2);
+    J *body2 = JAddObjectToObject(req4, "body");
+
+    if (body2) {
+      JAddStringToObject(body2, "stream_key", "carsbikebustruck");
+      JAddNumberToObject(body2, "car_to_sl", 12);
+      JAddNumberToObject(body2, "bike_to_sl", 12);
+      JAddNumberToObject(body2, "heavy_to_sl", 12);
+      JAddNumberToObject(body2, "total_to_sl", 12);
+      JAddNumberToObject(body2, "car_from_sl", 12);
+      JAddNumberToObject(body2, "bike_from_sl", 12);
+      JAddNumberToObject(body2, "heavy_from_sl", 12);
+      JAddNumberToObject(body2, "total_from_sl", 12);
+      JAddNumberToObject(body2, "voltage", 14.1);
+      JAddNumberToObject(body2, "rstlora", 12);
+    }
+    notecard.sendRequest(req4);
+  }
+
+  indicator();
+  points();
+  points();
+
+  J *req5 = notecard.newRequest("hub.sync");
+  if (req5 != NULL) {
+    notecard.sendRequest(req5);
+  }
+
+  points();
+  points();
+  indicator_final();
+
+  // Confirmación final: la inicialización solo se considera exitosa si responde.
+  return notecardResponde();
+}
+
+bool recuperarNotecard() {
+  // Contabilizar cada accionamiento del rele de recuperacion del Notecard.
+  rstlora++;
+
+  // LOW corta VMAIN y HIGH vuelve a alimentar el Notecard.
+  digitalWrite(rele3, LOW);
+  delay(NOTECARD_APAGADO_MS);
+
+  digitalWrite(rele3, HIGH);
+  delay(NOTECARD_ARRANQUE_MS);
+
+  // Se repite toda la configuración, excepto card.restore.
+  return inicializarNotecard(false);
+}
+
+void consultarInbound() {
+  J *req0 = notecard.newRequest("hub.sync");
+  if (req0 != NULL) {
+    notecard.sendRequest(req0);
+  }
+
+  indicator_read();
+
+  points();
+  points();
+  points();
+  points();
+
+  indicator_read();
+
+  // Solicitar cambios en el archivo y verificar solo si hay cambios.
+  J *req1 = notecard.newRequest("file.changes");
+  if (req1 != NULL) {
+    J *files = JCreateArray();
+    if (files != NULL) {
+      JAddItemToArray(files, JCreateString("datain.qi"));
+      JAddItemToObject(req1, "files", files);
+      J *rsp = notecard.requestAndResponse(req1);
+
+      if (rsp != NULL) {
+        J *info = JGetObject(rsp, "info");
+        if (info != NULL) {
+          J *datain = JGetObject(info, "datain.qi");
+          if (datain != NULL) {
+            J *req2 = notecard.newRequest("note.get");
+            if (req2 != NULL) {
+              JAddStringToObject(req2, "file", "datain.qi");
+              JAddBoolToObject(req2, "delete", true);
+              J *rsp2 = notecard.requestAndResponse(req2);
+
+              if (rsp2 != NULL) {
+                J *body1 = JGetObject(rsp2, "body");
+                if (body1 != NULL) {
+                  const char* command = JGetString(body1, "command");
+                  if (command != NULL) {
+                    usbSerial.print("Comando recibido: ");
+                    usbSerial.println(command);
+
+                    if (strcmp(command, "oncam") == 0) {
+                      digitalWrite(rele4, LOW);
+                    }
+                    if (strcmp(command, "offcam") == 0) {
+                      digitalWrite(rele4, HIGH);
+                    }
+                    if (strcmp(command, "resetpi") == 0) {
+                      digitalWrite(rele1, LOW);
+                      delay(1000);
+                      digitalWrite(rele1, HIGH);
+                    }
+                    if (strcmp(command, "resetjet") == 0) {
+                      digitalWrite(rele2, LOW);
+                      delay(1000);
+                      digitalWrite(rele2, HIGH);
+                    }
+
+                    const char* hash = JGetString(body1, "hash");
+                    if (hash != NULL && strcmp(hash, "-") != 0) {
+                      usbSerial.print("hash ");
+                      usbSerial.println(hash);
+                    } else {
+                      usbSerial.println("Sin hash");
+                    }
+                  }
+                }
+                JDelete(rsp2);
+              }
+            }
+          }
+        }
+        JDelete(rsp);
+      }
+    }
+  }
+
+  // Verifica de nuevo si hay algo en cola.
+  J *req3 = notecard.newRequest("file.changes");
+  if (req3 != NULL) {
+    J *files3 = JCreateArray();
+    if (files3 != NULL) {
+      JAddItemToArray(files3, JCreateString("datain.qi"));
+      JAddItemToObject(req3, "files", files3);
+      notecard.sendRequest(req3);
+    }
   }
 }
 
@@ -651,9 +723,9 @@ void serialEvent(){
   while(Serial.available()){
     char char_entrada=(char)Serial.read();   //Lee lo que se introduce y lo convierte a char
     string_entrada+=char_entrada;            //Agrega el char que se leyo al string
-
-    if(char_entrada=='\n'){                  //Si se aprieta enter lo toma como un salto de linea y determina que se completo el string
-      fin_string=true;
-    }
+    
+    if(char_entrada=='\n'){                  //Si se aprieta enter lo toma como un salto de linea y determina que se completo el string 
+      fin_string=true;    
+    } 
   }
 }
