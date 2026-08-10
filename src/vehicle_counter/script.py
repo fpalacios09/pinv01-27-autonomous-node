@@ -72,7 +72,8 @@ TRACKER_CONFIG = {
     'iou': 0.5,
     'agnostic_nms': True,
     'device': '0',
-    'stream': True
+    'stream': True,
+    'verbose': False
 }
 
 CLASS_NAMES = ["cars", "trucks", "buses", "motorcycles"]
