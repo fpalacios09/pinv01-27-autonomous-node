@@ -20,7 +20,7 @@ startup_frame_saved = False  # Para guardar solo una vez el primer frame con ROI
 
 USE_FIXED_PORT = True          # True = usar alias fijo como /dev/mcu
 FIXED_PORT = os.getenv("PINV_MCU_PORT", "/dev/mcu")
-STREAM_KEY = os.getenv("PINV_STREAM_KEY", "carbikebustruck")  # Identificador del flujo
+STREAM_KEY = "carbikebustruck"   # Identificador del flujo, cambiar por palabra clave de codigo en ejecucion
 
 USE_ROI = False                 # True = activa ROI, False = cuenta en toda la imagen
 
