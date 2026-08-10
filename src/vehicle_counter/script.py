@@ -33,12 +33,19 @@ LINE_POSITION_RATIO = 2 / 3
 COUNT_DIRECTION = "both"
 
 INTERVAL = 900                   # segundos
-MODEL_PATH = os.getenv("PINV_MODEL_PATH", "yolo26n.pt")
+
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_PATH = os.path.join(SCRIPT_DIR, "yolo26n.pt")		#cambiar este por el nombre real de los pesos a utilizar
+
+
 _video_source = os.getenv("PINV_VIDEO_SOURCE", "0")
 VIDEO_PATH = int(_video_source) if _video_source.isdigit() else _video_source
+
+
 SHOW_GUI = False               # True = muestra ventana, False = headless para servicio
 SAVE_STARTUP_ROI_FRAME = True   # Guarda una sola imagen inicial con ROI
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DIAGNOSTIC_DIR = os.path.join(SCRIPT_DIR, "logs_node")
 STARTUP_FRAME_PATH = os.path.join(DIAGNOSTIC_DIR, "startup_with_line.jpg")
 
