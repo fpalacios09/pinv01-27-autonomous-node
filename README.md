@@ -160,7 +160,7 @@ La Raspberry Pi que proporciona conectividad 4G a la Jetson se documenta en un r
 
 La integración de este repositorio con el nodo PINV01-27 se resume en:
 
-- [Raspberry Pi Router Integration](docs/network/raspberry-router.md)
+- [Integración con Raspberry Pi Router](docs/network/raspberry-router.md)
 
 ## Publicación en GitHub
 

@@ -1,62 +1,62 @@
-# Raspberry Pi 4G Router Integration
+# Integración del router 4G con Raspberry Pi
 
-The PINV01-27 autonomous node uses a Raspberry Pi with a 4G modem to provide internet connectivity to the NVIDIA Jetson.
+El nodo autónomo PINV01-27 utiliza una Raspberry Pi con un módem 4G para proporcionar conectividad a Internet a la NVIDIA Jetson.
 
-The complete Raspberry Pi setup is maintained in a separate repository:
+La configuración completa de la Raspberry Pi se mantiene en un repositorio independiente:
 
 - [Raspberry Pi 4G Router](https://github.com/fpalacios09/raspberry-4g-router)
 
-## Role in the PINV01-27 architecture
+## Función dentro de la arquitectura PINV01-27
 
-The Raspberry Pi acts as the internet gateway for the Jetson. Its main responsibilities are:
+La Raspberry Pi actúa como gateway de Internet para la Jetson. Sus principales responsabilidades son:
 
-- Establishing the 4G connection through the cellular modem.
-- Sharing the internet connection with the Jetson.
-- Providing connectivity for IPFS update downloads.
-- Allowing the Jetson to remain independent from a permanent wired network.
+- Establecer la conexión 4G mediante el módem celular.
+- Compartir la conexión a Internet con la Jetson.
+- Proporcionar conectividad para la descarga de actualizaciones mediante IPFS.
+- Permitir que la Jetson permanezca independiente de una red cableada permanente.
 
-## Recommended integration sequence
+## Secuencia de integración recomendada
 
-1. Configure and validate the Raspberry Pi router by following the instructions in the dedicated repository.
-2. Connect the Raspberry Pi and Jetson through the selected network interface.
-3. Verify that the Jetson receives an IP address.
-4. Confirm internet connectivity from the Jetson:
+1. Configurar y validar el router Raspberry Pi siguiendo las instrucciones del repositorio dedicado.
+2. Conectar la Raspberry Pi y la Jetson mediante la interfaz de red seleccionada.
+3. Verificar que la Jetson reciba una dirección IP.
+4. Confirmar la conectividad a Internet desde la Jetson:
 
 ```bash
 ping -c 4 1.1.1.1
 ```
 
-5. Confirm DNS resolution:
+5. Confirmar la resolución DNS:
 
 ```bash
 ping -c 4 github.com
 ```
 
-6. Verify IPFS connectivity:
+6. Verificar la conectividad de IPFS:
 
 ```bash
 ipfs swarm peers
 ```
 
-7. Test access to an IPFS object:
+7. Probar el acceso a un objeto IPFS:
 
 ```bash
 ipfs cat <CID>
 ```
 
-## Validation criteria
+## Criterios de validación
 
-The router integration is considered operational when:
+La integración del router se considera operativa cuando:
 
-- The Jetson has an IP address.
-- The Jetson can reach the internet.
-- DNS resolution works.
-- The IPFS daemon can connect to peers.
-- The update manager can download and verify an update package.
+- La Jetson tiene una dirección IP.
+- La Jetson puede acceder a Internet.
+- La resolución DNS funciona.
+- El daemon de IPFS puede conectarse a peers.
+- El gestor de actualizaciones puede descargar y verificar un paquete de actualización.
 
-## Related repository
+## Repositorio relacionado
 
-Repository URL:
+URL del repositorio:
 
 ```text
 https://github.com/fpalacios09/raspberry-4g-router
