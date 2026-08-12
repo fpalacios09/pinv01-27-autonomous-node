@@ -4,6 +4,8 @@
 
 //---------------------------------------------------------------------------------------
 
+#include "config.h"
+
 const int analogPin = A2;
 const int led = D5;
 const int rele4 = D3;   // camara
