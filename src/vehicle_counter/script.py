@@ -36,6 +36,7 @@ INTERVAL = 900                   # segundos
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+COUNTING_LOG_PATH = os.path.join(SCRIPT_DIR, "counting_log.txt")
 
 MODEL_PATH = os.path.join(SCRIPT_DIR, "yolo26n.pt")		#cambiar este por el nombre real de los pesos a utilizar
 
@@ -143,6 +144,19 @@ def signal_handler(sig, frame):
 
 def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
+
+
+def log_counting_message(message):
+    """
+    Guarda únicamente los JSON de conteo enviados por UART al Host MCU.
+    El archivo se crea en la misma carpeta que este script.
+    """
+    try:
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(COUNTING_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"{timestamp} {message.strip()}\n")
+    except Exception as e:
+        print(f"[debug] Error guardando counting_log.txt: {e}")
 
 
 def get_class_name(det):
@@ -510,6 +524,7 @@ try:
             if ser and ser.is_open:
                 mensaje = build_serial_message(interval_unique_ids)
                 ser.write(mensaje.encode())
+                log_counting_message(mensaje)
                 print(f"[debug] Enviado por serial: {mensaje.strip()}")
 
                 # Reiniciar acumuladores de la ventana
