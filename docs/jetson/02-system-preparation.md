@@ -8,7 +8,7 @@ sudo apt install -y \
   libjpeg-dev zlib1g-dev libfreetype6-dev \
   libgl1 libglib2.0-0 \
   nano unzip tar \
-  dfu-util udev
+  udev
 ```
 
 Agregar el usuario a `dialout`:
@@ -32,7 +32,58 @@ El modelo, los logs, los archivos IPFS y los entornos de Python pueden consumir 
 
 ```bash
 groups
-which git curl dfu-util
+which git curl
 ```
 
 El usuario aparece en `dialout` y las herramientas requeridas existen.
+
+## Uploader del Host MCU
+
+Las herramientas necesarias para cargar firmware en el Host MCU se instalan
+por separado según la placa utilizada.
+
+### Arduino Nano ESP32
+
+```bash
+bash scripts/install/install_nano_esp32_uploader.sh
+```
+
+Este instalador configura `dfu-util`, las reglas y permisos necesarios para
+la carga del firmware mediante DFU.
+
+### Arduino Nano 33 BLE
+
+```bash
+bash scripts/install/install_nano_33_ble_uploader.sh
+```
+
+Este instalador configura:
+
+- Arduino CLI.
+- El core `arduino:mbed_nano`.
+- La versión de `bossac` utilizada por Arduino para el Nano 33 BLE.
+- Los permisos necesarios para acceder al dispositivo mediante el grupo `dialout`.
+
+Durante una actualización remota, la Jetson no compila el firmware del Host MCU.
+El gestor de actualizaciones recibe un archivo `.ino.bin` previamente compilado y
+únicamente realiza su carga en la placa correspondiente.
+
+## Aliases udev del proyecto
+
+Los aliases permanentes:
+
+```text
+/dev/mcu
+/dev/adapter
+```
+
+se configuran de forma independiente mediante:
+
+```bash
+bash scripts/install/install_udev_rules.sh SERIAL_MCU SERIAL_ADAPTADOR
+```
+
+donde:
+
+- `SERIAL_MCU` corresponde al número de serie USB del Host MCU.
+- `SERIAL_ADAPTADOR` corresponde al número de serie USB del adaptador UART utilizado para recibir los hashes de actualización.
