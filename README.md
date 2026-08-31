@@ -1,6 +1,6 @@
 # PINV01-27 — Nodo autónomo de conteo vehicular
 
-Repositorio reproducible para desplegar un nodo de monitoreo vehicular en **NVIDIA Jetson**, con detección y seguimiento mediante **Ultralytics YOLO**, comunicación con un **Host MCU Arduino Nano ESP32**, transmisión LoRa/Notehub y recepción de actualizaciones remotas mediante **IPFS Kubo**.
+Repositorio reproducible para desplegar un nodo de monitoreo vehicular en **NVIDIA Jetson**, con detección y seguimiento mediante **Ultralytics YOLO**, comunicación con un **Host MCU Arduino Nano ESP32 o Arduino Nano 33 BLE**, transmisión LoRa/Notehub y recepción de actualizaciones remotas mediante **IPFS Kubo**.
 
 > El objetivo principal de este repositorio es documentar el **setup completo de la Jetson** y proporcionar una secuencia verificable de instalación, prueba e integración.
 
@@ -9,7 +9,7 @@ Repositorio reproducible para desplegar un nodo de monitoreo vehicular en **NVID
 ```mermaid
 flowchart LR
     CAM[Cámara / RTSP] --> JETSON[Jetson Orin Nano\nYOLO + ByteTrack]
-    JETSON -->|JSON por /dev/mcu| MCU[Arduino Nano ESP32\nHost MCU]
+    JETSON -->|JSON por /dev/mcu| MCU[Host MCU\nNano ESP32 / Nano 33 BLE]
     MCU -->|LoRa outbound| CLOUD[Notecard / Notehub]
     CLOUD -->|Hash CID inbound| MCU
     MCU -->|UART por /dev/adapter| UPDATER[Gestor de actualizaciones]
@@ -27,7 +27,7 @@ La guía principal se preparó para la plataforma utilizada en el proyecto:
 - Python 3.8 dentro de Miniconda.
 - PyTorch para Jetson con CUDA, no el paquete genérico de PyPI.
 - Kubo 0.42.0 para Linux ARM64.
-- Arduino Nano ESP32 como Host MCU.
+- Arduino Nano ESP32 o Arduino Nano 33 BLE como Host MCU.
 
 La matriz completa y los comandos de verificación están en [`docs/jetson/00-platform-matrix.md`](docs/jetson/00-platform-matrix.md).
 
@@ -63,10 +63,18 @@ export PINV_MODEL_PATH="$PWD/models/yolo26n.pt"
 python src/vehicle_counter/script.py
 ```
 
-Para el gestor de actualizaciones IPFS:
+Para ejecutar manualmente el gestor de actualizaciones IPFS, seleccionar la variante correspondiente al Host MCU.
+
+### Arduino Nano ESP32
 
 ```bash
-python src/update_manager/node.py
+python src/update_manager/nano_esp32/node.py
+```
+
+### Arduino Nano 33 BLE
+
+```bash
+python src/update_manager/nano_33_ble/node.py
 ```
 
 ## Actualizaciones remotas
@@ -79,6 +87,8 @@ El nodo permite actualizar remotamente:
 
 Las actualizaciones se empaquetan como archivos `.tar` o `.tar.gz`, se distribuyen mediante IPFS y se identifican mediante su CID. El CID se transmite al nodo a través de LoRa y UART.
 
+El archivo `.ino.bin` incluido en una actualización de firmware debe haber sido compilado específicamente para la variante de Host MCU instalada en el nodo.
+
 El procedimiento completo para preparar, enviar y verificar una actualización está disponible en:
 
 - [Remote Update Procedure](docs/updates/procedimiento-de-actualizacion.md)
@@ -88,27 +98,34 @@ El procedimiento completo para preparar, enviar y verificar una actualización e
 ```text
 .
 ├── docs/
-│   ├── arduino/                # Firmware y configuración del Host MCU
-│   ├── integration/            # Pruebas UART y LoRa
-│   ├── jetson/                 # Setup de JetPack, CUDA, Torch e IPFS
-│   ├── network/                # Router 4G basado en Raspberry Pi
-│   └── updates/                # Procedimientos de actualización remota
-├── environment/                # Dependencias y referencia del entorno
-├── examples/                   # Pruebas independientes del hardware LoRa
-├── firmware/host_mcu/          # Firmware del Arduino Nano ESP32
-├── rules/                      # Plantillas udev
-├── scripts/install/            # Instaladores y automatización controlada
-├── scripts/diagnostics/        # Diagnóstico de Jetson, CUDA, USB e IPFS
-├── src/update_manager/         # Recepción de CID y actualización IPFS
-├── src/vehicle_counter/        # Conteo vehicular y envío UART
-└── systemd/                    # Plantilla del servicio
+│   ├── arduino/
+│   ├── integration/
+│   ├── jetson/
+│   ├── network/
+│   └── updates/
+├── environment/
+├── examples/
+├── firmware/
+│   └── host_mcu/
+│       ├── nano_esp32/
+│       └── nano_33_ble/
+├── rules/
+├── scripts/
+│   ├── install/
+│   └── diagnostics/
+├── src/
+│   ├── update_manager/
+│   │   ├── nano_esp32/
+│   │   └── nano_33_ble/
+│   └── vehicle_counter/
+└── systemd/
 ```
 
 ## Seguridad antes de publicar
 
 - No subir contraseñas RTSP, tokens, ProductUID privados, claves o archivos `.env`.
 - El código original contenía una URL RTSP con credenciales; en esta versión fue reemplazada por `PINV_VIDEO_SOURCE`.
-- `firmware/host_mcu/lora/config.h` está ignorado por Git. Crear el archivo desde `config.example.h`.
+- Los archivos `firmware/host_mcu/*/lora/config.h` están ignorados por Git. Crear cada archivo desde el `config.example.h` correspondiente.
 - No subir archivos `.ovpn`; pueden contener credenciales, certificados y claves privadas.
 - No publicar paquetes de actualización que contengan credenciales o información privada.
 - Revisar [`docs/legal/licensing.md`](docs/legal/licensing.md) antes de publicar o usar el sistema comercialmente.
@@ -128,28 +145,10 @@ Estos archivos pueden versionarse cuando correspondan a una instalación validad
 
 ## Diagnóstico rápido
 
-Comprobar el entorno de Jetson:
-
 ```bash
 python examples/verify_jetson_stack.py
-```
-
-Comprobar el servicio:
-
-```bash
 sudo systemctl status pinv0127.service
-```
-
-Consultar los últimos registros:
-
-```bash
 journalctl -u pinv0127.service -n 100 --no-pager
-```
-
-Seguir los registros en tiempo real:
-
-```bash
-journalctl -u pinv0127.service -f
 ```
 
 ## Router 4G
