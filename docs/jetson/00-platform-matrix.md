@@ -5,10 +5,20 @@
 | Componente | Referencia |
 |---|---|
 | Computador de borde | NVIDIA Jetson Orin Nano 4 GB |
-| Host MCU | Arduino Nano ESP32 |
+| Host MCU | Arduino Nano ESP32 o Arduino Nano 33 BLE |
 | Enlace Jetson → MCU | USB serial, alias `/dev/mcu` |
 | Enlace MCU → Jetson para hashes | Adaptador USB/UART, alias `/dev/adapter` |
 | Conectividad de actualización | Raspberry Pi con módem 4G |
+
+El repositorio mantiene firmware y gestor de actualizaciones independientes para cada variante del Host MCU:
+
+```text
+firmware/host_mcu/nano_esp32/
+firmware/host_mcu/nano_33_ble/
+
+src/update_manager/nano_esp32/
+src/update_manager/nano_33_ble/
+```
 
 ## Software objetivo
 
@@ -39,6 +49,8 @@ Fuentes oficiales:
 ## No mezclar plataformas
 
 No instalar un wheel x86_64 ni una distribución estándar de PyTorch con CUDA para PC. La Jetson usa arquitectura ARM64 y necesita paquetes construidos para su versión de JetPack/Python.
+
+Los binarios `.ino.bin` del Host MCU tampoco son intercambiables entre variantes. Cada firmware debe compilarse específicamente para Nano ESP32 o Nano 33 BLE según corresponda.
 
 ## Captura de la plataforma instalada
 

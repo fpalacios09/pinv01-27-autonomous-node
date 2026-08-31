@@ -24,17 +24,25 @@ Donde:
 
 * `update_00X/`: carpeta raíz del paquete.
 * `arduino/readme.txt`: debe contener únicamente `true` o `false`.
-
   * `true`: existe una actualización para el microcontrolador.
   * `false`: no se actualizará el microcontrolador.
-* `arduino/sketch.ino.bin`: firmware compilado para el Arduino Nano ESP32.
+* `arduino/sketch.ino.bin`: firmware previamente compilado para la variante de Host MCU instalada en el nodo.
 * `python/readme.txt`: debe contener únicamente `true` o `false`.
-
   * `true`: existe una actualización para el código Python.
   * `false`: no se actualizará el código Python.
 * `python/script.py`: archivo Python que será ejecutado por el nodo. El nombre `script.py` es obligatorio.
 * `python/yolo26n.pt`: pesos del modelo YOLO utilizados por el script de actualización.
 * `readme.txt`: archivo opcional con información general sobre la actualización, cambios realizados, versión y observaciones.
+
+Las variantes de Host MCU soportadas son:
+
+```text
+Arduino Nano ESP32
+Arduino Nano 33 BLE
+```
+
+> [!IMPORTANT]
+> El archivo `.ino.bin` debe corresponder exactamente a la placa instalada. Los binarios de Nano ESP32 y Nano 33 BLE no son intercambiables.
 
 El nombre del archivo de pesos no tiene que ser necesariamente `yolo26n.pt`. Puede utilizarse otro nombre, siempre que el `script.py` incluido en la misma actualización utilice ese mismo nombre.
 
@@ -87,13 +95,11 @@ tar -czvf update_001.tar.gz update_001/
 
 ### Verificar el contenido antes de enviarlo
 
-Para un archivo `.tar`:
-
 ```bash
 tar -tvf update_001.tar
 ```
 
-Para un archivo `.tar.gz`:
+o:
 
 ```bash
 tar -tzvf update_001.tar.gz
@@ -115,6 +121,18 @@ Una vez creado el archivo comprimido:
 6. Confirmar que el CID sea transmitido al nodo remoto mediante LoRa.
 
 El nodo Jetson recibirá el CID por UART, descargará el paquete desde IPFS, verificará su integridad, descomprimirá el archivo y procesará las carpetas `python/` y `arduino/` según el contenido de sus respectivos archivos `readme.txt`.
+
+El servicio de la Jetson debe estar configurado para ejecutar el gestor correspondiente a la placa instalada:
+
+```text
+src/update_manager/nano_esp32/node.py
+```
+
+o:
+
+```text
+src/update_manager/nano_33_ble/node.py
+```
 
 Cuando `python/readme.txt` contiene:
 
@@ -145,18 +163,12 @@ La información transmitida hacia el nodo utiliza un mensaje JSON con la siguien
 }
 ```
 
-O
-
-```json
-{"command": "null","hash": "Qmx..."}
-```
-
 Los campos son:
 
-| Campo     | Descripción                                              |
-| --------- | -------------------------------------------------------- |
-| `command` | Comando de control que debe ejecutar el nodo.            |
-| `hash`    | CID de IPFS correspondiente al paquete de actualización. |
+| Campo | Descripción |
+|---|---|
+| `command` | Comando de control que debe ejecutar el nodo. |
+| `hash` | CID de IPFS correspondiente al paquete de actualización. |
 
 ### 4.1 Envío de una actualización
 
@@ -177,57 +189,17 @@ Ejemplo:
 }
 ```
 
-En este caso:
-
-```text
-command = null
-        ↓
-no se ejecuta un comando de control
-
-hash = Qmx...
-        ↓
-CID del paquete de actualización
-        ↓
-descarga mediante IPFS
-        ↓
-verificación
-        ↓
-descompresión
-        ↓
-procesamiento del update
-```
-
 ### 4.2 Comandos de control
 
 El campo `command` puede utilizar los siguientes valores:
 
-| Comando    | Función                                                                                                              |
-| ---------- | -------------------------------------------------------------------------------------------------------------------- |
-| `resetjet` | Reinicia la Jetson.                                                                                                  |
-| `resetpi`  | Reinicia la Raspberry Pi.                                                                                            |
-| `oncam`    | Enciende o habilita la cámara.                                                                                       |
-| `offcam`   | Apaga o deshabilita la cámara.                                                                                       |
-| `null`     | No ejecuta ningún comando de control; se utiliza para el envío normal de una actualización mediante el campo `hash`. |
-
-Los comandos deben escribirse exactamente como se indican.
-
-Ejemplo conceptual:
-
-```json
-{
-  "command": "resetjet",
-  "hash": "..."
-}
-```
-
-Cuando se utiliza el sistema para enviar una actualización normal, debe utilizarse:
-
-```json
-{
-  "command": "null",
-  "hash": "CID_IPFS"
-}
-```
+| Comando | Función |
+|---|---|
+| `resetjet` | Reinicia la Jetson. |
+| `resetpi` | Reinicia la Raspberry Pi. |
+| `oncam` | Enciende o habilita la cámara. |
+| `offcam` | Apaga o deshabilita la cámara. |
+| `null` | No ejecuta ningún comando de control; se utiliza para una actualización normal. |
 
 > [!IMPORTANT]
 > No enviar comandos de control mientras se está procesando una actualización remota.
@@ -241,20 +213,17 @@ Después de enviar el paquete:
 1. Verificar que el nodo remoto haya recibido el CID.
 2. Confirmar que la Jetson haya descargado correctamente el paquete desde IPFS.
 3. Verificar que el archivo haya sido descomprimido.
-4. Confirmar que el nuevo `script.py` haya comenzado a ejecutarse.
-5. Esperar aproximadamente entre **15 y 20 minutos**, según el intervalo configurado para el envío de datos.
-6. Abrir Notehub.
-7. Verificar que vuelvan a recibirse eventos con los datos generados por el nuevo código.
-
-El tiempo de espera para visualizar nuevos eventos depende del intervalo configurado dentro del `script.py` y del flujo de comunicación con el Host MCU y Notehub.
+4. Confirmar que el nuevo `script.py` haya comenzado a ejecutarse, si corresponde.
+5. Si se actualizó el Host MCU, confirmar que la placa volvió a ejecutar su firmware.
+6. Esperar aproximadamente entre **15 y 20 minutos**, según el intervalo configurado para el envío de datos.
+7. Abrir Notehub.
+8. Verificar que vuelvan a recibirse eventos con los datos generados por el nuevo código.
 
 ---
 
 ## 6. Tipos de actualización
 
 ### 6.1 Actualización exclusiva de Python
-
-Configurar:
 
 ```text
 arduino/readme.txt = false
@@ -270,22 +239,9 @@ python/
 └── yolo26n.pt
 ```
 
-o los archivos adicionales requeridos por el nuevo `script.py`.
-
-Por ejemplo:
-
-```text
-python/
-├── readme.txt
-├── script.py
-└── modelo_v2.pt
-```
-
 El archivo de pesos debe coincidir con el modelo especificado dentro del propio `script.py`.
 
 ### 6.2 Actualización exclusiva del microcontrolador
-
-Configurar:
 
 ```text
 arduino/readme.txt = true
@@ -300,16 +256,23 @@ arduino/
 └── sketch.ino.bin
 ```
 
-### 6.3 Actualización conjunta
+Antes de crear el paquete, verificar que `sketch.ino.bin` haya sido compilado para la placa instalada:
 
-El sistema puede procesar actualizaciones de Python y Arduino dentro del mismo paquete:
+```text
+Nano ESP32   -> binario compilado para Nano ESP32
+Nano 33 BLE  -> binario compilado para Nano 33 BLE
+```
+
+El gestor de actualizaciones no compila el firmware en la Jetson.
+
+### 6.3 Actualización conjunta
 
 ```text
 arduino/readme.txt = true
 python/readme.txt  = true
 ```
 
-Sin embargo, se recomienda evitar la actualización simultánea de Python y Arduino durante las pruebas iniciales o en despliegues críticos.
+El sistema puede procesar actualizaciones de Python y Arduino dentro del mismo paquete. Sin embargo, se recomienda evitar la actualización simultánea durante las pruebas iniciales o en despliegues críticos.
 
 ---
 
@@ -318,6 +281,8 @@ Sin embargo, se recomienda evitar la actualización simultánea de Python y Ardu
 * Enviar una sola actualización a la vez.
 * Evitar actualizar simultáneamente el firmware y el código Python, salvo que sea estrictamente necesario.
 * No enviar comandos de control mientras se procesa una actualización.
+* Verificar siempre que el `.ino.bin` corresponda a la variante de Host MCU instalada.
+* No reutilizar un binario de Nano ESP32 en Nano 33 BLE ni viceversa.
 * Incluir siempre los pesos de YOLO requeridos por el nuevo `script.py`.
 * Mantener los pesos del modelo dentro de la carpeta `python/` de la actualización.
 * Asegurarse de que el nombre del modelo utilizado dentro de `script.py` coincida con el archivo `.pt` enviado.
@@ -342,8 +307,6 @@ python/readme.txt = true
 
 el gestor de actualizaciones reemplaza el código Python que se encontraba ejecutándose.
 
-El flujo es:
-
 ```text
 nuevo update recibido
         ↓
@@ -358,27 +321,9 @@ ejecución del nuevo script.py
 
 Por lo tanto, no es necesario detener manualmente el código anterior antes de enviar una nueva actualización.
 
-Si se desea detener temporalmente el procesamiento principal sin iniciar otro algoritmo, puede enviarse un `script.py` mínimo que permanezca activo.
-
-Ejemplo:
-
-```python
-import time
-
-print("Script temporal activo. El procesamiento principal está detenido.")
-
-try:
-    while True:
-        time.sleep(60)
-except KeyboardInterrupt:
-    print("Script temporal finalizado.")
-```
-
 ---
 
 ## 9. Ejemplo de `readme.txt` general
-
-El archivo `readme.txt` de la carpeta raíz puede tener un contenido similar a:
 
 ```text
 Proyecto: PINV01-27
@@ -417,8 +362,9 @@ Antes de enviar el paquete, comprobar:
 * [ ] Los archivos `readme.txt` de `arduino/` y `python/` contienen únicamente `true` o `false`.
 * [ ] El archivo Python se llama exactamente `script.py`.
 * [ ] El firmware compilado utiliza la extensión `.ino.bin`.
+* [ ] Si se actualiza el MCU, el `.ino.bin` corresponde exactamente a la placa instalada.
+* [ ] El servicio ejecuta el `node.py` correspondiente a la variante de Host MCU.
 * [ ] Los pesos YOLO requeridos por `script.py` están incluidos.
-* [ ] El nombre del archivo de pesos coincide con el utilizado dentro de `script.py`.
 * [ ] El archivo `.tar` o `.tar.gz` puede abrirse correctamente.
 * [ ] El nuevo código fue probado en laboratorio.
 * [ ] No existen credenciales, contraseñas o tokens escritos directamente en el código.
@@ -437,7 +383,8 @@ Después de la actualización:
 * [ ] La Jetson descargó y validó el paquete.
 * [ ] El archivo comprimido se descomprimió correctamente.
 * [ ] Se detectó correctamente la carpeta raíz del update.
-* [ ] El nuevo `script.py` está en ejecución.
+* [ ] El nuevo `script.py` está en ejecución, si corresponde.
+* [ ] Si se actualizó el MCU, la placa volvió a ejecutar correctamente el firmware.
 * [ ] El modelo YOLO se cargó sin errores.
 * [ ] CUDA está disponible.
 * [ ] La comunicación UART funciona.
@@ -457,19 +404,7 @@ Para consultar los últimos registros:
 journalctl -u pinv0127.service -n 100 --no-pager
 ```
 
-Para seguir los registros en tiempo real:
-
-```bash
-journalctl -u pinv0127.service -f
-```
-
-Los errores generados por el `script.py` ejecutado mediante una actualización pueden revisarse en el archivo:
-
-```text
-python_stderr.log
-```
-
-ubicado dentro de la carpeta `python/` correspondiente a la actualización descomprimida.
+Los errores generados por el `script.py` ejecutado mediante una actualización pueden revisarse en `python_stderr.log`, ubicado dentro de la carpeta `python/` correspondiente a la actualización descomprimida.
 
 ---
 
@@ -495,7 +430,7 @@ UART /dev/adapter
         ↓
 Jetson
         ↓
-node.py
+node.py seleccionado para la variante del MCU
         ↓
 descarga y verificación IPFS
         ↓

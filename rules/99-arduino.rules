@@ -1,1 +1,3 @@
+# PINV01-27 - Permiso udev para Arduino Nano ESP32 en modo DFU.
+# Esta regla NO crea el alias /dev/mcu.
 SUBSYSTEM=="usb", ATTR{idVendor}=="2341", ATTR{idProduct}=="0070", MODE="0660", GROUP="dialout"

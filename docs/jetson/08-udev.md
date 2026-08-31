@@ -2,12 +2,14 @@
 
 El proyecto usa:
 
-- `/dev/mcu`: Arduino Nano ESP32 que recibe los conteos.
+- `/dev/mcu`: Host MCU instalado en el nodo, Arduino Nano ESP32 o Arduino Nano 33 BLE.
 - `/dev/adapter`: adaptador USB/UART por el que llegan hashes CID/comandos.
 
 ## Aclaración importante
 
 Una regla basada en `ATTRS{serial}` sigue al **mismo dispositivo físico aunque cambie de puerto USB o número tty**. No reserva un puerto USB para cualquier dispositivo.
+
+El alias `/dev/mcu` identifica el puerto normal del Host MCU mediante su número de serie USB.
 
 ## Identificar el tty
 
@@ -20,6 +22,12 @@ Buscar el primer atributo `serial` único en la jerarquía USB, por ejemplo:
 
 ```text
 ATTRS{serial}=="85435303533351F0F1"
+```
+
+También puede consultarse mediante:
+
+```bash
+udevadm info --query=property --name=/dev/ttyACM0 | grep -E 'ID_SERIAL|ID_VENDOR|ID_MODEL'
 ```
 
 ## Crear las reglas
@@ -39,6 +47,40 @@ O automatizar:
 ```bash
 bash scripts/install/install_udev_rules.sh SERIAL_MCU SERIAL_ADAPTADOR
 ```
+
+## Nano ESP32 y permiso DFU
+
+El alias `/dev/mcu` y el permiso para acceder al Nano ESP32 en modo DFU son configuraciones diferentes.
+
+El uploader del Nano ESP32 instala adicionalmente la regla:
+
+```text
+rules/99-arduino.rules
+```
+
+para permitir el acceso al dispositivo DFU `2341:0070`.
+
+```bash
+bash scripts/install/install_nano_esp32_uploader.sh
+```
+
+## Nano 33 BLE y reenumeración del bootloader
+
+En el Nano 33 BLE, `/dev/mcu` se utiliza para localizar el puerto normal de la placa.
+
+Durante una actualización, Arduino CLI realiza el reset de 1200 bps. El puerto normal puede desaparecer y el bootloader puede aparecer temporalmente con otro nombre, por ejemplo:
+
+```text
+/dev/ttyACM0
+        ↓
+bootloader
+        ↓
+/dev/ttyACM1
+```
+
+El gestor resuelve inicialmente `/dev/mcu` al tty real y Arduino CLI se encarga de detectar el puerto temporal del bootloader.
+
+Por tanto, no es necesario que `/dev/mcu` permanezca disponible durante toda la reenumeración del bootloader.
 
 ## Probar la regla
 
@@ -65,7 +107,7 @@ readlink -f /dev/adapter
 groups
 ```
 
-## Eliminar las reglas
+## Eliminar las reglas de aliases
 
 ```bash
 sudo rm /etc/udev/rules.d/99-pinv0127-serial.rules
