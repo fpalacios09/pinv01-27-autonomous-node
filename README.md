@@ -35,17 +35,18 @@ La matriz completa y los comandos de verificación están en [`docs/jetson/00-pl
 
 1. [Flashear JetPack](docs/jetson/01-flash-jetpack.md).
 2. [Preparar el sistema base](docs/jetson/02-system-preparation.md).
-3. [Instalar Miniconda](docs/jetson/03-miniconda.md).
-4. [Instalar IPFS Kubo](docs/jetson/04-ipfs-kubo.md).
-5. [Instalar PyTorch con CUDA](docs/jetson/05-pytorch-cuda.md).
-6. [Instalar Ultralytics](docs/jetson/06-ultralytics.md).
-7. [Verificar CUDA, Torch y YOLO](docs/jetson/07-verification.md).
-8. [Configurar aliases udev `/dev/mcu` y `/dev/adapter`](docs/jetson/08-udev.md).
-9. [Cargar el firmware del Host MCU](docs/arduino/firmware.md).
-10. [Probar el envío Jetson → MCU → LoRa](docs/integration/uart-lora-test.md).
-11. [Instalar y habilitar el servicio systemd](docs/jetson/09-systemd.md).
-12. [Configurar la Raspberry Pi como router](docs/network/raspberry-router.md).
-13. [Configurar OpenVPN en la Jetson](docs/jetson/10-openvpn.md).
+3. [Configurar la Raspberry Pi como router](docs/network/raspberry-router.md).
+4. [Configurar OpenVPN en la Jetson](docs/jetson/10-openvpn.md).
+5. [Instalar Miniconda](docs/jetson/03-miniconda.md).
+6. [Instalar IPFS Kubo](docs/jetson/04-ipfs-kubo.md).
+7. [Instalar PyTorch con CUDA](docs/jetson/05-pytorch-cuda.md).
+8. [Instalar Ultralytics](docs/jetson/06-ultralytics.md).
+9. [Verificar CUDA, Torch y YOLO](docs/jetson/07-verification.md).
+10. [Configurar aliases udev `/dev/mcu` y `/dev/adapter`](docs/jetson/08-udev.md).
+11. [Cargar el firmware del Host MCU](docs/arduino/firmware.md).
+12. [Probar el envío Jetson → MCU → LoRa](docs/integration/uart-lora-test.md).
+13. [Instalar y habilitar el servicio systemd](docs/jetson/09-systemd.md).
+
 
 ## Inicio rápido después del setup
 
@@ -91,7 +92,7 @@ El archivo `.ino.bin` incluido en una actualización de firmware debe haber sido
 
 El procedimiento completo para preparar, enviar y verificar una actualización está disponible en:
 
-- [Remote Update Procedure](docs/updates/procedimiento-de-actualizacion.md)
+- [Procedimiento de actualización remota](docs/updates/procedimiento-de-actualizacion.md)
 
 ## Estructura del repositorio
 
