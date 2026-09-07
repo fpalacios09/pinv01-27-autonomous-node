@@ -147,6 +147,9 @@ void setup() {
 }
 
 void loop() {
+
+  serialEvent();
+
   unsigned long currentMillis = millis();
 
   if ( (currentMillis - previousMillis >= interval) || (digitalRead(trig) == LOW ) ) {
@@ -263,6 +266,7 @@ void loop() {
     int bike_from_sl_tx = (bike_from_sl == 0) ? -1 : bike_from_sl;
     int heavy_from_sl_tx = (heavy_from_sl == 0) ? -1 : heavy_from_sl;
     int total_from_sl_tx = (total_from_sl == 0) ? -1 : total_from_sl;
+    long rstlora_tx = (rstlora == 0) ? -1 : rstlora;
 
     usbSerial.print("stream_key: ");
     usbSerial.print(stream_key);
@@ -325,7 +329,7 @@ void loop() {
         JAddNumberToObject(body2, "heavy_from_sl", heavy_from_sl_tx);
         JAddNumberToObject(body2, "total_from_sl", total_from_sl_tx);
         JAddNumberToObject(body2, "voltage", voltage);
-        JAddNumberToObject(body2, "rstlora", rstlora);
+        JAddNumberToObject(body2, "rstlora", rstlora_tx);
       }
 
       notecard.sendRequest(req4);

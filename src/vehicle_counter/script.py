@@ -18,6 +18,8 @@ startup_frame_saved = False  # Para guardar solo una vez el primer frame con ROI
 # CONFIGURACIÓN
 # =========================================================
 
+continuous_log = False
+
 USE_FIXED_PORT = True          # True = usar alias fijo como /dev/mcu
 FIXED_PORT = os.getenv("PINV_MCU_PORT", "/dev/mcu")
 STREAM_KEY = "carbikebustruck"   # Identificador del flujo, cambiar por palabra clave de codigo en ejecucion
@@ -40,15 +42,25 @@ COUNTING_LOG_PATH = os.path.join(SCRIPT_DIR, "counting_log.txt")
 
 MODEL_PATH = os.path.join(SCRIPT_DIR, "yolo26n.pt")		#cambiar este por el nombre real de los pesos a utilizar
 
+# Fuente de video: cambiar manualmente por la fuente deseada.
+# Ejemplos:
+# VIDEO_SOURCE = 0
+# VIDEO_SOURCE = "/ruta/al/video.mp4"
+# VIDEO_SOURCE = "rtsp://usuario:password@IP:554/Stream"
+VIDEO_SOURCE = ""
 
-_video_source = os.getenv("PINV_VIDEO_SOURCE", "0")
-VIDEO_PATH = int(_video_source) if _video_source.isdigit() else _video_source
+# Si el usuario elimina/no declara VIDEO_SOURCE, VIDEO_PATH queda en None
+# y la validación mostrará el error correspondiente.
+VIDEO_PATH = globals().get("VIDEO_SOURCE", None)
+if isinstance(VIDEO_PATH, str) and VIDEO_PATH.isdigit():
+    VIDEO_PATH = int(VIDEO_PATH)
 
 
 SHOW_GUI = False               # True = muestra ventana, False = headless para servicio
 SAVE_STARTUP_ROI_FRAME = True   # Guarda una sola imagen inicial con ROI
 DIAGNOSTIC_DIR = os.path.join(SCRIPT_DIR, "logs_node")
 STARTUP_FRAME_PATH = os.path.join(DIAGNOSTIC_DIR, "startup_with_line.jpg")
+ERROR_LOG_PATH = os.path.join(DIAGNOSTIC_DIR, "error_log.txt")
 
 # IDs COCO en YOLO:
 # 2 = car
@@ -119,7 +131,12 @@ def open_serial():
         sys.exit(1)
 
     print(f"[debug] Conectando a: {port}")
-    ser = serial.Serial(port, baudrate=115200, timeout=1)
+    ser = serial.Serial(
+        port,
+        baudrate=115200,
+        timeout=1,
+        write_timeout=2
+    )
     print(f"[debug] Conectado correctamente a: {port}")
 
 
@@ -157,6 +174,51 @@ def log_counting_message(message):
             f.write(f"{timestamp} {message.strip()}\n")
     except Exception as e:
         print(f"[debug] Error guardando counting_log.txt: {e}")
+
+
+def log_error(message):
+    """Guarda errores del script dentro de logs_node/error_log.txt."""
+    try:
+        ensure_dir(DIAGNOSTIC_DIR)
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(ERROR_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"{timestamp} {message.strip()}\n")
+    except Exception as e:
+        print(f"[debug] Error guardando error_log.txt: {e}")
+
+
+def validate_video_source(source):
+    """Valida que la fuente de video exista y entregue al menos un frame."""
+    if source is None:
+        return False
+
+    if isinstance(source, str):
+        source = source.strip()
+        if not source:
+            return False
+        source = int(source) if source.isdigit() else source
+
+    if isinstance(source, int) and source < 0:
+        return False
+
+    cap = cv2.VideoCapture(source)
+    try:
+        if not cap.isOpened():
+            return False
+        ok, frame = cap.read()
+        return ok and frame is not None
+    finally:
+        cap.release()
+
+
+def print_countdown_dots(seconds=10, message=""):
+    """Espera mostrando un punto por segundo en la terminal."""
+    if message:
+        print(message, end="", flush=True)
+    for _ in range(seconds):
+        time.sleep(1)
+        print(".", end="", flush=True)
+    print("")
 
 
 def get_class_name(det):
@@ -393,6 +455,12 @@ try:
     print(f"[debug] SHOW_GUI = {SHOW_GUI}")
     print(f"[debug] SAVE_STARTUP_ROI_FRAME = {SAVE_STARTUP_ROI_FRAME}")
 
+    if not validate_video_source(VIDEO_PATH):
+        error_message = "Video Source inválido o inexistente"
+        print(error_message)
+        log_error(error_message)
+        sys.exit(1)
+
     open_serial()
 
     print("")
@@ -409,7 +477,8 @@ try:
     # Formato: {track_id: yc_anterior}
     previous_y_by_id = {}
 
-    last_sent = time.time()
+    last_sent = None
+    startup_sequence_done = False
 
     for result in model.track(source=VIDEO_PATH, **TRACKER_CONFIG):
         frame = result.orig_img
@@ -421,10 +490,40 @@ try:
         line_y = get_line_y(frame)
         draw_counting_line(frame, line_y)
 
-        # Guardar una sola vez el primer frame con línea/ROI
-        if SAVE_STARTUP_ROI_FRAME and not startup_frame_saved:
-            save_startup_frame_with_roi(frame)
-            startup_frame_saved = True
+        # Secuencia de inicio: guardar frame, esperar 10 s, enviar JSON inicial,
+        # esperar otros 10 s y recién entonces iniciar oficialmente el conteo.
+        if not startup_sequence_done:
+            if SAVE_STARTUP_ROI_FRAME and not startup_frame_saved:
+                save_startup_frame_with_roi(frame)
+                startup_frame_saved = True
+
+            print_countdown_dots(10, "[inicio] Verificación previa ")
+
+            if ser and ser.is_open:
+                startup_message = build_serial_message(new_direction_set_dict())
+
+                try:
+                    print("[debug] Enviando JSON inicial...")
+                    ser.write(startup_message.encode())
+                    log_counting_message(startup_message)
+                    print(f"[debug] JSON inicial enviado por serial: {startup_message.strip()}")
+
+                except serial.SerialTimeoutException:
+                    error_message = "Timeout enviando JSON inicial por serial. Cerrando script."
+                    print(f"[debug] {error_message}")
+                    log_error(error_message)
+                    sys.exit(1)
+
+            print_countdown_dots(10, "[inicio] Preparando inicio oficial ")
+            print("[inicio] ================================================")
+            print("[inicio] EL SCRIPT COMIENZA A FUNCIONAR OFICIALMENTE")
+            print("[inicio] ================================================")
+
+            # El intervalo normal empieza a contarse desde este instante.
+            interval_unique_ids = new_direction_set_dict()
+            previous_y_by_id = {}
+            last_sent = time.time()
+            startup_sequence_done = True
 
         # Conteos visibles del frame actual
         current_counts = new_counter_dict()
@@ -466,11 +565,13 @@ try:
 
                 if crossed_down and track_id not in interval_unique_ids["to_sl"][class_name]:
                     interval_unique_ids["to_sl"][class_name].add(track_id)
-                    print(f"[debug] Cruce TO_SL detectado -> {class_name} ID:{track_id}")
+                    if continuous_log:
+                        print(f"[debug] Cruce TO_SL detectado -> {class_name} ID:{track_id}")
 
                 if crossed_up and track_id not in interval_unique_ids["from_sl"][class_name]:
                     interval_unique_ids["from_sl"][class_name].add(track_id)
-                    print(f"[debug] Cruce FROM_SL detectado -> {class_name} ID:{track_id}")
+                    if continuous_log:
+                        print(f"[debug] Cruce FROM_SL detectado -> {class_name} ID:{track_id}")
 
                 previous_y_by_id[track_id] = yc
 
@@ -495,27 +596,28 @@ try:
 
         interval_counts = interval_unique_ids
 
-        print(
+        if(continuous_log):
+            print(
             f"Frame -> cars:{current_counts['cars']} "
             f"trucks:{current_counts['trucks']} "
             f"buses:{current_counts['buses']} "
             f"motorcycles:{current_counts['motorcycles']}"
-        )
-        to_sl_counts = build_direction_counts(interval_counts["to_sl"])
-        from_sl_counts = build_direction_counts(interval_counts["from_sl"])
-        print(
-            f"Crossed interval TO_SL -> car:{to_sl_counts['car']} "
-            f"bike:{to_sl_counts['bike']} "
-            f"heavy:{to_sl_counts['heavy']} "
-            f"total:{to_sl_counts['total']}"
-        )
-        print(
-            f"Crossed interval FROM_SL -> car:{from_sl_counts['car']} "
-            f"bike:{from_sl_counts['bike']} "
-            f"heavy:{from_sl_counts['heavy']} "
-            f"total:{from_sl_counts['total']}"
-        )
-        print("")
+            )
+            to_sl_counts = build_direction_counts(interval_counts["to_sl"])
+            from_sl_counts = build_direction_counts(interval_counts["from_sl"])
+            print(
+                f"Crossed interval TO_SL -> car:{to_sl_counts['car']} "
+                f"bike:{to_sl_counts['bike']} "
+                f"heavy:{to_sl_counts['heavy']} "
+                f"total:{to_sl_counts['total']}"
+            )
+            print(
+                f"Crossed interval FROM_SL -> car:{from_sl_counts['car']} "
+                f"bike:{from_sl_counts['bike']} "
+                f"heavy:{from_sl_counts['heavy']} "
+                f"total:{from_sl_counts['total']}"
+            )
+            print("")
 
         draw_overlay(frame, current_counts, interval_counts)
 
@@ -523,12 +625,20 @@ try:
         if time.time() - last_sent > INTERVAL:
             if ser and ser.is_open:
                 mensaje = build_serial_message(interval_unique_ids)
-                ser.write(mensaje.encode())
-                log_counting_message(mensaje)
-                print(f"[debug] Enviado por serial: {mensaje.strip()}")
 
-                # Reiniciar acumuladores de la ventana
-                interval_unique_ids = new_direction_set_dict()
+                try:
+                    ser.write(mensaje.encode())
+                    log_counting_message(mensaje)
+                    print(f"[debug] Enviado por serial: {mensaje.strip()}")
+
+                    # Reiniciar acumuladores de la ventana
+                    interval_unique_ids = new_direction_set_dict()
+
+                except serial.SerialTimeoutException:
+                    error_message = "Timeout enviando JSON por serial. Cerrando script."
+                    print(f"[debug] {error_message}")
+                    log_error(error_message)
+                    sys.exit(1)
 
             last_sent = time.time()
 
@@ -539,7 +649,9 @@ try:
                 break
 
 except Exception as e:
-    print(f"[debug] Error: {e}")
+    error_message = f"Error: {e}"
+    print(f"[debug] {error_message}")
+    log_error(error_message)
 
 finally:
     close_serial()
