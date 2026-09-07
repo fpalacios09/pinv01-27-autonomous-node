@@ -12,7 +12,7 @@ import numpy as np
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='yolo26n.pt')
+    parser.add_argument('--model', default='yolo11n.pt')
     parser.add_argument('--output-dir', default='runs/verification')
     args = parser.parse_args()
 

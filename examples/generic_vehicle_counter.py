@@ -27,7 +27,7 @@ startup_countdown(5)
 
 model = YOLO(MODEL_PATH)
 
-MODEL_PATH = "yolo26n.pt"
+MODEL_PATH = "yolo11n.pt"
 
 # Cámara local:
 # VIDEO_SOURCE = 0

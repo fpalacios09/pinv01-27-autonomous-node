@@ -40,7 +40,7 @@ INTERVAL = 900                   # segundos
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 COUNTING_LOG_PATH = os.path.join(SCRIPT_DIR, "counting_log.txt")
 
-MODEL_PATH = os.path.join(SCRIPT_DIR, "yolo26n.pt")		#cambiar este por el nombre real de los pesos a utilizar
+MODEL_PATH = os.path.join(SCRIPT_DIR, "yolo11n.pt")		#cambiar este por el nombre real de los pesos a utilizar
 
 # Fuente de video: cambiar manualmente por la fuente deseada.
 # Ejemplos:

@@ -1506,6 +1506,11 @@ try:
     print(f"[debug] Conectando al puerto: {port}")
     ser = serial.Serial(port, baudrate=BAUDRATE, timeout=1)
     print(f"[debug] Conectado al puerto: {port}")
+    print("READY...")
+    print(".")
+    print(".")
+    print(".")
+    print(".")
 
     while True:
         line = ser.readline().decode('utf-8', errors='ignore').strip()
