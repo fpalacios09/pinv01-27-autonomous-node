@@ -7,6 +7,8 @@ import os
 import psutil
 import shutil
 import tarfile
+import threading
+import queue
 
 
 print(".\n.\n.\n=================================")
@@ -19,7 +21,20 @@ print("=================================.\n.\n.\n")
 # =========================
 SERIAL_PORT = os.getenv("PINV_UPDATE_SERIAL_PORT", "/dev/adapter")  # UART de hashes
 MCU_PORT = os.getenv("PINV_MCU_PORT", "/dev/mcu")  # Host MCU
-BAUDRATE = 115200
+BAUDRATE = 19200  # Bajado a 19200 para evitar saturación del adaptador Prolific
+
+# Supervisión del enlace serial Arduino -> Jetson.
+# El Arduino envía "heartbeat" cada 5 s desde setup() y durante loop().
+# Cualquier byte recibido también cuenta como actividad válida. Si el TTY
+# deja de entregar datos durante SERIAL_RX_TIMEOUT segundos, node.py cierra
+# y vuelve a abrir /dev/adapter.
+SERIAL_READ_TIMEOUT = float(os.getenv("PINV_SERIAL_READ_TIMEOUT", "1"))
+SERIAL_RX_TIMEOUT = float(os.getenv("PINV_SERIAL_RX_TIMEOUT", "60"))
+SERIAL_RECONNECT_DELAY = float(os.getenv("PINV_SERIAL_RECONNECT_DELAY", "2"))
+SERIAL_HEARTBEAT_TEXT = "heartbeat"
+SERIAL_PRINT_HEARTBEAT = os.getenv("PINV_SERIAL_PRINT_HEARTBEAT", "0").lower() in (
+    "1", "true", "yes", "on"
+)
 
 # Descarga de actualizaciones:
 # - primero se intenta P2P mediante Kubo;
@@ -76,6 +91,11 @@ my_pid = None
 current_python_process = None
 current_python_pgid = None
 current_python_stderr_log = None
+
+# Cola de actualizaciones. El lector serie permanece siempre activo mientras
+# un worker separado realiza IPFS, extracción y carga del firmware.
+update_queue = queue.Queue(maxsize=1)
+update_in_progress = threading.Event()
 
 
 # =========================
@@ -678,6 +698,7 @@ def start_ipfs_daemon(attempt=1, max_attempts=IPFS_START_MAX_ATTEMPTS):
 
     return False
 
+
 def stop_ipfs_daemon():
     """
     Apaga de forma ordenada únicamente el daemon iniciado por node.py.
@@ -1117,6 +1138,7 @@ def download_ipfs_archive(hash_value, destination_dir):
     safe_remove(temp_dir)
     return final_path
 
+
 def safe_extract_tar(tar, destination):
     """Extrae un TAR sin permitir rutas externas ni enlaces simbólicos/duros."""
     destination_real = os.path.realpath(destination)
@@ -1375,6 +1397,46 @@ def process_downloaded_update(hash_value):
         print("[debug] No existe carpeta arduino en la actualización.")
 
 
+def update_worker():
+    """
+    Procesa actualizaciones en un hilo separado para que la recepción de
+    /dev/adapter no se detenga mientras IPFS o DFU están trabajando.
+    """
+    while True:
+        hash_value = update_queue.get()
+        update_in_progress.set()
+
+        try:
+            print(f"[debug] Worker iniciando actualización: {hash_value}")
+            process_downloaded_update(hash_value)
+            print(f"[debug] Worker finalizó actualización: {hash_value}")
+        except Exception as e:
+            print(f"[error] Error en worker de actualización: {e}")
+        finally:
+            update_in_progress.clear()
+            update_queue.task_done()
+
+
+def enqueue_update(hash_value):
+    """
+    Encola una actualización si no hay otra ejecutándose ni pendiente.
+    """
+    if update_in_progress.is_set() or not update_queue.empty():
+        print(
+            "[warning] Ya existe una actualización en ejecución o pendiente. "
+            "Se ignora el nuevo hash por ahora."
+        )
+        return False
+
+    try:
+        update_queue.put_nowait(hash_value)
+        print("[debug] Actualización enviada al worker.")
+        return True
+    except queue.Full:
+        print("[warning] La cola de actualizaciones está ocupada.")
+        return False
+
+
 # =========================
 # SERIAL
 # =========================
@@ -1386,11 +1448,73 @@ def find_ports():
 
 
 def close_serial():
+    """Cierra de forma segura la sesión PySerial actual."""
     global ser
-    if ser and ser.is_open:
-        print("\n[debug] Cerrando el puerto serial...")
-        ser.close()
-        print("\n[debug] Puerto serial cerrado correctamente")
+
+    if ser is None:
+        return
+
+    try:
+        if ser.is_open:
+            print("\n[debug] Cerrando el puerto serial...")
+            ser.close()
+            print("[debug] Puerto serial cerrado correctamente.")
+    except (serial.SerialException, OSError) as e:
+        print(f"[warning] Error cerrando el puerto serial: {e}")
+    finally:
+        ser = None
+
+
+def open_serial_port():
+    """
+    Abre /dev/adapter. Si el alias no existe todavía o el adaptador no puede
+    abrirse, espera y reintenta sin finalizar node.py.
+    """
+    global ser
+
+    while True:
+        if not os.path.exists(SERIAL_PORT):
+            print(
+                f"[warning] No existe {SERIAL_PORT}. "
+                f"Reintentando en {SERIAL_RECONNECT_DELAY:.1f} s..."
+            )
+            time.sleep(SERIAL_RECONNECT_DELAY)
+            continue
+
+        try:
+            print(f"[debug] Conectando al puerto: {SERIAL_PORT}")
+            ser = serial.Serial(
+                port=SERIAL_PORT,
+                baudrate=BAUDRATE,
+                timeout=SERIAL_READ_TIMEOUT,
+                write_timeout=SERIAL_READ_TIMEOUT,
+                xonxoff=False,
+                rtscts=False,
+                dsrdtr=False
+            )
+            print(f"[debug] Conectado al puerto: {SERIAL_PORT}")
+            return True
+
+        except (serial.SerialException, OSError) as e:
+            ser = None
+            print(
+                f"[warning] No se pudo abrir {SERIAL_PORT}: {e}. "
+                f"Reintentando en {SERIAL_RECONNECT_DELAY:.1f} s..."
+            )
+            time.sleep(SERIAL_RECONNECT_DELAY)
+
+
+def reconnect_serial(reason):
+    """
+    Reconstruye completamente la sesión PySerial usando nuevamente el alias
+    udev /dev/adapter. Esto permite recuperarse de un TTY que sigue existiendo
+    pero dejó de entregar bytes al descriptor abierto anteriormente.
+    """
+    print(f"[warning] Reiniciando enlace serial. Motivo: {reason}")
+    close_serial()
+    time.sleep(SERIAL_RECONNECT_DELAY)
+    open_serial_port()
+    print("[ok] Enlace serial restablecido.")
 
 
 def signal_handler(sig, frame):
@@ -1430,43 +1554,77 @@ try:
             "Se continuará esperando comandos y se reintentará antes de descargar."
         )
 
-    port = find_ports()
+    # El worker de actualización es daemon: no bloquea el cierre del proceso.
+    worker_thread = threading.Thread(
+        target=update_worker,
+        name="pinv0127-update-worker",
+        daemon=True
+    )
+    worker_thread.start()
+    print("[debug] Worker de actualizaciones iniciado.")
 
-    if not os.path.exists(port):
-        print(f"[error] No existe el dispositivo '{port}'. Verificá tu regla udev y reconectá el adaptador.")
-        stop_ipfs_daemon()
-        sys.exit(1)
+    open_serial_port()
 
-    print(f"[debug] Conectando al puerto: {port}")
-    ser = serial.Serial(port, baudrate=BAUDRATE, timeout=1)
-    print(f"[debug] Conectado al puerto: {port}")
-    print("READY...")
-    print(".")
-    print(".")
-    print(".")
-    print(".")
-    print(".")
+    # El watchdog se arma inmediatamente después de abrir /dev/adapter.
+    # El Arduino emite "setup:start" y heartbeat también durante setup().
+    # Así se puede recuperar el TTY incluso si la recepción muere antes de
+    # Ready o antes de recibir el primer byte tras un reset.
+    last_serial_rx_time = time.monotonic()
+    serial_watchdog_armed = True
 
     while True:
-        line = ser.readline().decode('utf-8', errors='ignore').strip()
+        try:
+            raw = ser.readline()
+        except (serial.SerialException, OSError) as e:
+            reconnect_serial(f"excepción de lectura: {e}")
+            last_serial_rx_time = time.monotonic()
+            serial_watchdog_armed = True
+            continue
 
-        if line:
-            print(f"[debug] Recibido: {line}")
+        now = time.monotonic()
 
-        if line.startswith("hash "):
-            hash_value = line[5:].strip()
+        if raw:
+            # Incluso una línea parcial demuestra que el descriptor recibió bytes.
+            last_serial_rx_time = now
+            serial_watchdog_armed = True
 
-            if hash_value == "-":
-                print("[debug] Hash ignorado: '-'")
+            line = raw.decode('utf-8', errors='ignore').strip()
 
-            elif is_valid_ipfs_hash(hash_value):
-                print(f"[HASH RECIBIDO] {hash_value}")
-                print("[debug] Hash válido.")
-                print("[debug] Recuperando archivo comprimido desde IPFS...")
-                process_downloaded_update(hash_value)
+            if line:
+                if line == SERIAL_HEARTBEAT_TEXT:
+                    if SERIAL_PRINT_HEARTBEAT:
+                        print("[debug] Heartbeat Arduino recibido.")
+                else:
+                    print(f"[debug] Recibido: {line}")
 
-            else:
-                print(f"[debug] Hash inválido (longitud {len(hash_value)}): {hash_value}")
+                if line.startswith("hash "):
+                    hash_value = line[5:].strip()
+
+                    if hash_value == "-":
+                        print("[debug] Hash ignorado: '-'")
+
+                    elif is_valid_ipfs_hash(hash_value):
+                        print(f"[HASH RECIBIDO] {hash_value}")
+                        print("[debug] Hash válido.")
+                        enqueue_update(hash_value)
+
+                    else:
+                        print(
+                            f"[debug] Hash inválido "
+                            f"(longitud {len(hash_value)}): {hash_value}"
+                        )
+
+        elif (
+            serial_watchdog_armed
+            and last_serial_rx_time is not None
+            and (now - last_serial_rx_time) >= SERIAL_RX_TIMEOUT
+        ):
+            elapsed = now - last_serial_rx_time
+            reconnect_serial(
+                f"sin recibir bytes durante {elapsed:.1f} s "
+                f"(límite {SERIAL_RX_TIMEOUT:.1f} s)"
+            )
+            last_serial_rx_time = time.monotonic()
 
 except Exception as e:
     print(f"[debug] Error: {e}")

@@ -6,23 +6,31 @@
 
 #include "config.h"
 
+// Debug interno de la librería Notecard.
+// 0 = desactivado para operación normal; 1 = activado para diagnóstico.
+#define NOTECARD_DEBUG 0
+
 const int analogPin = A2;
 const int led = D5;
 const int rele4 = D3;   // camara
-const int rele3 = D2;	  // power modulo lora
+const int rele3 = D2;   // power modulo lora
 const int rele2 = D6;   // raspberry
 const int rele1 = D4;   // jetson
-const int trig = D10; // forzar recepcion de json boton de force lora read en la pcb
+const int trig = D10;   // forzar recepcion de json boton de force lora read en la pcb
 
 const float R1 = 29910.0;
 const float R2 = 7500.0;
-
-
 
 //---------------------------------------------------------------------------------------
 
 unsigned long previousMillis = 0;  // debe ser unsigned long
 const unsigned long interval = 5UL * 60UL * 1000UL;  // 10 o 15 minutos en milisegundos
+
+// Heartbeat UART hacia node.py. Se mantiene activo también durante setup()
+// y durante esperas largas para detectar/reparar pérdidas del enlace serial.
+unsigned long previousHeartbeatMillis = 0;
+const unsigned long HEARTBEAT_INTERVAL_MS = 5000UL;
+bool heartbeatEnabled = false;
 
 // Supervisión del Notecard
 const byte NOTECARD_MAX_INTENTOS = 3;
@@ -37,10 +45,10 @@ int valor = 0;
 
 #include <Notecard.h>
 
-const byte RXD2 = 11; //
-const byte TXD2 = 12; //
+const byte RXD2 = D11; // Agregamos la "D" para evitar confusiones de mapeo
+const byte TXD2 = D12; // Agregamos la "D"
 
-HardwareSerial usbSerial(1); // Use UART channel 1
+HardwareSerial usbSerial(1); // Usar canal UART 1 por hardware
 
 #define myProductID PRODUCT_UID   //nombre del proyecto en notehub definido en config.h
 
@@ -50,8 +58,6 @@ String string_entrada= "";
 bool fin_string= false;
 int value = 0;
 unsigned long rstlora = 0;
-
-//----------------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 // FUNCIONES AUXILIARES PARA LEER JSON SIMPLE DESDE LA JETSON
@@ -103,6 +109,34 @@ int getJsonIntValue(const String &json, const String &key, int defaultValue) {
   return json.substring(startIndex, endIndex).toInt();
 }
 
+//----------------------------------------------------------------------------------------
+// HEARTBEAT DEL ENLACE ARDUINO -> JETSON
+//----------------------------------------------------------------------------------------
+
+void serviceHeartbeat() {
+  if (!heartbeatEnabled) {
+    return;
+  }
+
+  unsigned long now = millis();
+
+  if (now - previousHeartbeatMillis >= HEARTBEAT_INTERVAL_MS) {
+    previousHeartbeatMillis = now;
+    usbSerial.println("heartbeat");
+  }
+}
+
+void delayWithHeartbeat(unsigned long durationMs) {
+  unsigned long start = millis();
+
+  while (millis() - start < durationMs) {
+    serviceHeartbeat();
+    delay(25);
+  }
+
+  serviceHeartbeat();
+}
+
 
 void setup() {
 
@@ -115,33 +149,48 @@ void setup() {
   digitalWrite(rele3, HIGH);
   digitalWrite(rele4 , LOW);
 
-  delay(10000);
-
-  string_entrada.reserve(64);               //Reserva un espacio de hasta 64bytes
+  string_entrada.reserve(256);               // Reserva un espacio seguro de 256 bytes para el JSON largo
   
-  usbSerial.begin(115200, SERIAL_8N1, RXD2, TXD2);
-  Serial.begin(115200);
+  usbSerial.begin(19200, SERIAL_8N1, RXD2, TXD2); // puerto del adaptador UART-USB
+  Serial.begin(19200);
+
+  heartbeatEnabled = true;
+  previousHeartbeatMillis = millis();
+  usbSerial.println("setup:start");
+
+  // Espera inicial, manteniendo vivo el heartbeat
+  delayWithHeartbeat(10000);
+
+  // Asegurar resolución de 12 bits para lecturas de voltaje (0-4095)
+  analogReadResolution(12);
 
   pinMode(led, OUTPUT);
   digitalWrite(led, LOW);
 
   indicator();
-
   pinMode(trig, INPUT_PULLUP);
-
   indicator();
   points();
 
-  notecard.setDebugOutputStream(usbSerial);
+  #if NOTECARD_DEBUG
+    notecard.setDebugOutputStream(usbSerial);
+  #endif
 
   // Configuración inicial completa. card.restore se ejecuta solamente aquí.
   inicializarNotecard(true);
 
   usbSerial.println("Ready");
+  previousHeartbeatMillis = millis();
 }
 
 void loop() {
+  // En ESP32, es obligatorio llamar a serialEvent explicitamente
+  serialEvent();
+
   unsigned long currentMillis = millis();
+
+  // Mantener vivo el enlace serial durante la operación normal
+  serviceHeartbeat();
 
   if ( (currentMillis - previousMillis >= interval) || (digitalRead(trig) == LOW ) ) {
     previousMillis = currentMillis;
@@ -161,11 +210,6 @@ void loop() {
     }
   }
 
-
-
-
-
-
   if (fin_string) {
     string_entrada.trim();
     fin_string = false;
@@ -180,8 +224,7 @@ void loop() {
     int heavy_from_sl = 0;
     int total_from_sl = 0;
 
-    // Formato nuevo esperado desde Python:
-    // {"stream_key":"carsbikebustruck","car_to_sl":1,"bike_to_sl":0,"heavy_to_sl":0,"total_to_sl":1,"car_from_sl":0,"bike_from_sl":0,"heavy_from_sl":0,"total_from_sl":0}
+    // Formato nuevo esperado desde Python
     if (string_entrada.startsWith("{")) {
       stream_key = getJsonStringValue(string_entrada, "stream_key");
       car_to_sl = getJsonIntValue(string_entrada, "car_to_sl", 0);
@@ -193,15 +236,12 @@ void loop() {
       heavy_from_sl = getJsonIntValue(string_entrada, "heavy_from_sl", 0);
       total_from_sl = getJsonIntValue(string_entrada, "total_from_sl", 0);
     } else {
-      // Compatibilidad con el formato anterior:
-      // cars:1,trucks:0,buses:0,motorcycles:2
+      // Compatibilidad con el formato anterior
       stream_key = "legacy";
-
       int cars = 0;
       int trucks = 0;
       int buses = 0;
       int motorcycles = 0;
-
       int start = 0;
 
       while (start < string_entrada.length()) {
@@ -257,6 +297,7 @@ void loop() {
     int bike_from_sl_tx = (bike_from_sl == 0) ? -1 : bike_from_sl;
     int heavy_from_sl_tx = (heavy_from_sl == 0) ? -1 : heavy_from_sl;
     int total_from_sl_tx = (total_from_sl == 0) ? -1 : total_from_sl;
+    long rstlora_tx = (rstlora == 0) ? -1 : rstlora;
 
     usbSerial.print("stream_key: ");
     usbSerial.print(stream_key);
@@ -281,31 +322,10 @@ void loop() {
     float vPin = (adc / 4095.0) * 3.3;
     float voltage  = vPin * (R1 + R2) / R2;
 
-
-
     J *req4 = notecard.newRequest("note.add");
     if (req4 != NULL) {
       JAddStringToObject(req4, "file", "count.qo");
       JAddBoolToObject(req4, "sync", true);
-
-      usbSerial.print("stream_key: ");
-      usbSerial.print(stream_key);
-      usbSerial.print(" | car_to_sl: ");
-      usbSerial.print(car_to_sl_tx);
-      usbSerial.print(" | bike_to_sl: ");
-      usbSerial.print(bike_to_sl_tx);
-      usbSerial.print(" | heavy_to_sl: ");
-      usbSerial.print(heavy_to_sl_tx);
-      usbSerial.print(" | total_to_sl: ");
-      usbSerial.print(total_to_sl_tx);
-      usbSerial.print(" | car_from_sl: ");
-      usbSerial.print(car_from_sl_tx);
-      usbSerial.print(" | bike_from_sl: ");
-      usbSerial.print(bike_from_sl_tx);
-      usbSerial.print(" | heavy_from_sl: ");
-      usbSerial.print(heavy_from_sl_tx);
-      usbSerial.print(" | total_from_sl: ");
-      usbSerial.println(total_from_sl_tx);
 
       J *body2 = JAddObjectToObject(req4, "body");
       if (body2) {
@@ -319,20 +339,18 @@ void loop() {
         JAddNumberToObject(body2, "heavy_from_sl", heavy_from_sl_tx);
         JAddNumberToObject(body2, "total_from_sl", total_from_sl_tx);
         JAddNumberToObject(body2, "voltage", voltage);
-        JAddNumberToObject(body2, "rstlora", rstlora);
+        JAddNumberToObject(body2, "rstlora", rstlora_tx);
       }
-
       notecard.sendRequest(req4);
     }
-
+    
     points();
     points();
     indicator();
-
+    
     string_entrada = "";
   }
 }
-
 
 //----------------------------------------------------------------------------------------
 // SUPERVISIÓN, INICIALIZACIÓN Y RECUPERACIÓN DEL NOTECARD
@@ -353,8 +371,6 @@ bool notecardResponde() {
     return false;
   }
 
-  // requestAndResponse utiliza el timeout de transacción de la librería Notecard.
-  // Si no recibe una respuesta, retorna NULL y este intento se considera fallido.
   J *rsp = notecard.requestAndResponse(req);
   bool correcto = respuestaNotecardValida(rsp);
 
@@ -380,7 +396,7 @@ bool verificarNotecardConReintentos() {
     usbSerial.println("Notecard no respondio.");
 
     if (intento < NOTECARD_MAX_INTENTOS) {
-      delay(NOTECARD_ESPERA_REINTENTO_MS);
+      delayWithHeartbeat(NOTECARD_ESPERA_REINTENTO_MS);
     }
   }
 
@@ -394,7 +410,6 @@ bool inicializarNotecard(bool restaurar) {
     notecard.begin();
   #endif
 
-  // card.restore solamente se ejecuta durante el arranque normal del Arduino.
   if (restaurar) {
     J *req = notecard.newRequest("card.restore");
     if (req != NULL) {
@@ -406,7 +421,6 @@ bool inicializarNotecard(bool restaurar) {
     points();
   }
 
-  // Verificar que el Notecard está accesible antes de configurarlo.
   if (!verificarNotecardConReintentos()) {
     usbSerial.println("No se pudo iniciar la configuracion del Notecard.");
     return false;
@@ -415,7 +429,6 @@ bool inicializarNotecard(bool restaurar) {
   indicator();
   points();
 
-  // Conectar con el proyecto de Notehub.
   J *req1 = notecard.newRequest("hub.set");
   if (req1 == NULL) {
     return false;
@@ -433,7 +446,6 @@ bool inicializarNotecard(bool restaurar) {
   points();
   points();
 
-  // Sincronizar con el proyecto de Notehub.
   J *req2 = notecard.newRequest("hub.sync");
   if (req2 != NULL) {
     notecard.sendRequest(req2);
@@ -443,7 +455,6 @@ bool inicializarNotecard(bool restaurar) {
   points();
   points();
 
-  // Template inbound.
   J *req3 = notecard.newRequest("note.template");
   if (req3 != NULL) {
     JAddStringToObject(req3, "file", "datain.qi");
@@ -461,7 +472,6 @@ bool inicializarNotecard(bool restaurar) {
   points();
   points();
 
-  // Template outbound. Se conserva exactamente la estructura existente.
   J *req4 = notecard.newRequest("note.template");
   if (req4 != NULL) {
     JAddStringToObject(req4, "file", "count.qo");
@@ -498,41 +508,37 @@ bool inicializarNotecard(bool restaurar) {
   points();
   indicator_final();
 
-  // Confirmación final: la inicialización solo se considera exitosa si responde.
   return notecardResponde();
 }
 
 bool recuperarNotecard() {
-  // Contabilizar cada accionamiento del rele de recuperacion del Notecard.
   rstlora++;
 
-  // LOW corta VMAIN y HIGH vuelve a alimentar el Notecard.
   digitalWrite(rele3, LOW);
-  delay(NOTECARD_APAGADO_MS);
+  delayWithHeartbeat(NOTECARD_APAGADO_MS);
 
   digitalWrite(rele3, HIGH);
-  delay(NOTECARD_ARRANQUE_MS);
+  delayWithHeartbeat(NOTECARD_ARRANQUE_MS);
 
-  // Se repite toda la configuración, excepto card.restore.
   return inicializarNotecard(false);
 }
 
 void consultarInbound() {
+  // === CHECKPOINT: INICIO ===
+  usbSerial.println("Iniciando ciclo Inbound...");
+
   J *req0 = notecard.newRequest("hub.sync");
   if (req0 != NULL) {
     notecard.sendRequest(req0);
   }
 
   indicator_read();
-
   points();
   points();
   points();
   points();
-
   indicator_read();
 
-  // Solicitar cambios en el archivo y verificar solo si hay cambios.
   J *req1 = notecard.newRequest("file.changes");
   if (req1 != NULL) {
     J *files = JCreateArray();
@@ -568,12 +574,12 @@ void consultarInbound() {
                     }
                     if (strcmp(command, "resetpi") == 0) {
                       digitalWrite(rele1, LOW);
-                      delay(1000);
+                      delayWithHeartbeat(1000);
                       digitalWrite(rele1, HIGH);
                     }
                     if (strcmp(command, "resetjet") == 0) {
                       digitalWrite(rele2, LOW);
-                      delay(1000);
+                      delayWithHeartbeat(1000);
                       digitalWrite(rele2, HIGH);
                     }
 
@@ -596,7 +602,6 @@ void consultarInbound() {
     }
   }
 
-  // Verifica de nuevo si hay algo en cola.
   J *req3 = notecard.newRequest("file.changes");
   if (req3 != NULL) {
     J *files3 = JCreateArray();
@@ -606,123 +611,130 @@ void consultarInbound() {
       notecard.sendRequest(req3);
     }
   }
+  
+  // === CHECKPOINT: FIN ===
+  usbSerial.println("Ciclo Inbound finalizado.");
 }
-
 
 void points(){
   usbSerial.println(".");
-  delay(1000);
+  delayWithHeartbeat(1000);
   usbSerial.println(".");
-  delay(1000);
+  delayWithHeartbeat(1000);
   usbSerial.println(".");
-  delay(1000);
+  delayWithHeartbeat(1000);
   usbSerial.println(".");
-  delay(1000);
+  delayWithHeartbeat(1000);
 }
 
 void points60(){
   for(int i=0; i<60; i++){
     usbSerial.println(".");
-    delay(1000);
+    delayWithHeartbeat(1000);
   }
 }
 
 void indicator(){
   digitalWrite(led, LOW);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, HIGH);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, LOW);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, HIGH);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, LOW);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, HIGH);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, LOW);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, HIGH);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, LOW);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, HIGH);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, LOW);
 }
 
 void indicator_read(){
   digitalWrite(led, LOW);
-  delay(80);
+  delayWithHeartbeat(80);
   digitalWrite(led, HIGH);
-  delay(80);
+  delayWithHeartbeat(80);
   digitalWrite(led, LOW);
-  delay(80);
+  delayWithHeartbeat(80);
   digitalWrite(led, HIGH);
-  delay(80);
+  delayWithHeartbeat(80);
   digitalWrite(led, LOW);
-  delay(80);
+  delayWithHeartbeat(80);
   digitalWrite(led, HIGH);
-  delay(80);
+  delayWithHeartbeat(80);
   digitalWrite(led, LOW);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, HIGH);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, LOW);
-  delay(300);
+  delayWithHeartbeat(300);
   digitalWrite(led, HIGH);
 }
 
 void indicator_final(){
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, LOW);
-  delay(100);
+  delayWithHeartbeat(100);
   digitalWrite(led, HIGH);
-  delay(100);
+  delayWithHeartbeat(100);
 }
 
 void serialEvent(){
-  while(Serial.available()){
-    char char_entrada=(char)Serial.read();   //Lee lo que se introduce y lo convierte a char
-    string_entrada+=char_entrada;            //Agrega el char que se leyo al string
+  // El ESP32 cuenta con la suficiente memoria para procesar,
+  // pero igual evitamos desbordamientos por seguridad
+  while(Serial.available() && !fin_string){
+    char char_entrada = (char)Serial.read();
     
-    if(char_entrada=='\n'){                  //Si se aprieta enter lo toma como un salto de linea y determina que se completo el string 
-      fin_string=true;    
+    if (string_entrada.length() < 250) {
+      string_entrada += char_entrada;
+    }
+    
+    if(char_entrada == '\n'){
+      fin_string = true;    
     } 
   }
 }
