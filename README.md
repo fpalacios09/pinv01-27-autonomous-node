@@ -47,6 +47,9 @@ La matriz completa y los comandos de verificación están en [`docs/jetson/00-pl
 12. [Probar el envío Jetson → MCU → LoRa](docs/integration/uart-lora-test.md).
 13. [Instalar y habilitar el servicio systemd](docs/jetson/09-systemd.md).
 
+Si se desea, se puede habilitar manualmente un script de conteo vehicular, mediante un servicio, sin estar sometido a las actualizaciones por IPFS, esto mediante:
+
+Extra: [Activar script de conteo manualmente](manual_count_activation/README.md).
 
 ## Inicio rápido después del setup
 
