@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+export PTZ_IP="192.168.100.41"
+export PTZ_PORT="80"
+export PTZ_USER="admin"
+export PTZ_PASSWORD="CAMBIAR"
+export PTZ_RTSP_PATH="/Stream"
+export PTZ_MOVE_SPEED="0.25"
+export PTZ_MOVE_TIME="0.20"
+export PTZ_DISPLAY_WIDTH="640"
+export PTZ_DISPLAY_HEIGHT="360"
