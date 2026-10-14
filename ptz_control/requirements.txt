@@ -1,2 +1,3 @@
 onvif-zeep==0.2.12
 platformdirs>=4,<5
+opencv-python
